@@ -6,10 +6,5 @@
 	<string>We need access to your health data to display your daily activity in the widget.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>We need access to update your health data for accurate widget display.</string>
-	<key>NSExtension</key>
-	<dict>
-		<key>NSExtensionPointIdentifier</key>
-		<string>com.apple.widgetkit-extension</string>
-	</dict>
 </dict>
 </plist>

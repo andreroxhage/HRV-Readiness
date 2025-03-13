@@ -9,51 +9,227 @@ import WidgetKit
 import SwiftUI
 
 struct Provider: TimelineProvider {
-    func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), emoji: "😀")
+    static let appGroupIdentifyer = "group.andreroxhage.Ready-2-0"
+    let sharedDefaults = UserDefaults(suiteName: appGroupIdentifyer)
+
+    func placeholder(in context: Context) -> HealthEntry {
+        HealthEntry(date: Date(), steps: 0, activeEnergy: 0, heartRate: 0)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let entry = SimpleEntry(date: Date(), emoji: "😀")
+    func getSnapshot(in context: Context, completion: @escaping (HealthEntry) -> ()) {
+        let entry = getHealthEntry()
         completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
-        var entries: [SimpleEntry] = []
-
-        // Generate a timeline consisting of five entries an hour apart, starting from the current date.
+        let currentEntry = getHealthEntry()
+        
+        // Schedule updates every 15 minutes
+        var entries: [HealthEntry] = [currentEntry]
         let currentDate = Date()
-        for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            let entry = SimpleEntry(date: entryDate, emoji: "😀")
+        
+        for minute in stride(from: 15, through: 60, by: 15) {
+            let entryDate = Calendar.current.date(byAdding: .minute, value: minute, to: currentDate)!
+            let entry = HealthEntry(date: entryDate, steps: currentEntry.steps, activeEnergy: currentEntry.activeEnergy, heartRate: currentEntry.heartRate)
             entries.append(entry)
         }
-
-        let timeline = Timeline(entries: entries, policy: .atEnd)
+        
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate)!
+        let timeline = Timeline(entries: entries, policy: .after(nextUpdate))
+        
         completion(timeline)
     }
+    
+    private func getHealthEntry() -> HealthEntry {
+        let defaults = sharedDefaults
+        let steps = defaults?.double(forKey: "lastSteps") ?? 0
+        print("Widget reading - Steps: \(steps)")
+        print("Widget reading - App Group ID... \(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.example.shareddefaults") ?? URL(fileURLWithPath: "/dev/null"))")
 
-//    func relevances() async -> WidgetRelevances<Void> {
-//        // Generate a list containing the contexts this widget is relevant in.
-//    }
+        // debugg
+        print("steps: " + String(format: "%.2f", steps))
+
+        return HealthEntry(
+            date: defaults?.object(forKey: "lastUpdateTime") as? Date ?? Date(),
+            steps: steps,
+            activeEnergy: defaults?.double(forKey: "lastActiveEnergy") ?? 0,
+            heartRate: defaults?.double(forKey: "lastHeartRate") ?? 0
+        )
+    }
 }
 
-struct SimpleEntry: TimelineEntry {
+struct HealthEntry: TimelineEntry {
     let date: Date
-    let emoji: String
+    let steps: Double
+    let activeEnergy: Double
+    let heartRate: Double
 }
 
-struct Widget_2_0EntryView : View {
+struct Widget_2_0EntryView: View {
+    @Environment(\.widgetFamily) var family
     var entry: Provider.Entry
-
+    
     var body: some View {
-        VStack {
-            Text("Time:")
-            Text(entry.date, style: .time)
-
-            Text("Emoji:")
-            Text(entry.emoji)
+        switch family {
+        case .systemSmall:
+            SmallWidgetView(entry: entry)
+        case .systemMedium:
+            MediumWidgetView(entry: entry)
+        case .systemLarge:
+            LargeWidgetView(entry: entry)
+        case .accessoryCircular:
+            CircularWidgetView(entry: entry)
+        case .accessoryRectangular:
+            RectangularWidgetView(entry: entry)
+        case .accessoryInline:
+            InlineWidgetView(entry: entry)
+        default:
+            SmallWidgetView(entry: entry)
         }
+    }
+}
+
+struct SmallWidgetView: View {
+    var entry: Provider.Entry
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "figure.walk")
+                .font(.title)
+            Text("\(Int(entry.steps))")
+                .font(.system(.title2, design: .rounded))
+                .bold()
+            Text("Steps")
+                .font(.caption)
+        }
+    }
+}
+
+struct MediumWidgetView: View {
+    var entry: Provider.Entry
+    
+    var body: some View {
+        HStack {
+            VStack(spacing: 8) {
+                Image(systemName: "figure.walk")
+                    .font(.title2)
+                Text("\(Int(entry.steps))")
+                    .font(.system(.body, design: .rounded))
+                    .bold()
+                Text("Steps")
+                    .font(.caption)
+            }
+            
+            Divider()
+            
+            VStack(spacing: 8) {
+                Image(systemName: "flame.fill")
+                    .font(.title2)
+                Text("\(Int(entry.activeEnergy))")
+                    .font(.system(.body, design: .rounded))
+                    .bold()
+                Text("Cal")
+                    .font(.caption)
+            }
+            
+            Divider()
+            
+            VStack(spacing: 8) {
+                Image(systemName: "heart.fill")
+                    .font(.title2)
+                Text("\(Int(entry.heartRate))")
+                    .font(.system(.body, design: .rounded))
+                    .bold()
+                Text("BPM")
+                    .font(.caption)
+            }
+        }
+        .padding()
+    }
+}
+
+struct LargeWidgetView: View {
+    var entry: Provider.Entry
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Health Summary")
+                .font(.headline)
+            
+            VStack(spacing: 20) {
+                HStack {
+                    Image(systemName: "figure.walk")
+                        .font(.title)
+                    VStack(alignment: .leading) {
+                        Text("\(Int(entry.steps))")
+                            .font(.system(.title2, design: .rounded))
+                            .bold()
+                        Text("Steps today")
+                            .font(.caption)
+                    }
+                }
+                
+                HStack {
+                    Image(systemName: "flame.fill")
+                        .font(.title)
+                    VStack(alignment: .leading) {
+                        Text("\(Int(entry.activeEnergy))")
+                            .font(.system(.title2, design: .rounded))
+                            .bold()
+                        Text("Active calories")
+                            .font(.caption)
+                    }
+                }
+                
+                HStack {
+                    Image(systemName: "heart.fill")
+                        .font(.title)
+                    VStack(alignment: .leading) {
+                        Text("\(Int(entry.heartRate))")
+                            .font(.system(.title2, design: .rounded))
+                            .bold()
+                        Text("Avg heart rate")
+                            .font(.caption)
+                    }
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+struct CircularWidgetView: View {
+    var entry: Provider.Entry
+    
+    var body: some View {
+        Gauge(value: entry.steps, in: 0...10000) {
+            Image(systemName: "figure.walk")
+        } currentValueLabel: {
+            Text("\(Int(entry.steps))")
+        }
+        .gaugeStyle(.accessoryCircular)
+    }
+}
+
+struct RectangularWidgetView: View {
+    var entry: Provider.Entry
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "figure.walk")
+            Text("\(Int(entry.steps)) steps")
+            Spacer()
+            Image(systemName: "heart.fill")
+            Text("\(Int(entry.heartRate)) bpm")
+        }
+    }
+}
+
+struct InlineWidgetView: View {
+    var entry: Provider.Entry
+    
+    var body: some View {
+        Text("\(Int(entry.steps)) steps")
     }
 }
 
@@ -71,14 +247,21 @@ struct Widget_2_0: Widget {
                     .background()
             }
         }
-        .configurationDisplayName("My Widget")
-        .description("This is an example widget.")
+        .configurationDisplayName("Health Stats")
+        .description("View your daily health statistics.")
+        .supportedFamilies([
+            .systemSmall,
+            .systemMedium,
+            .systemLarge
+        ])
     }
 }
 
-#Preview(as: .systemSmall) {
-    Widget_2_0()
-} timeline: {
-    SimpleEntry(date: .now, emoji: "😀")
-    SimpleEntry(date: .now, emoji: "🤩")
+#if DEBUG
+struct Widget_2_0_Previews: PreviewProvider {
+    static var previews: some View {
+        Widget_2_0EntryView(entry: HealthEntry(date: .now, steps: 5432, activeEnergy: 320, heartRate: 72))
+            .previewContext(WidgetPreviewContext(family: .systemSmall))
+    }
 }
+#endif

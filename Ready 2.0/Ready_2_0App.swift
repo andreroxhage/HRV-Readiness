@@ -6,9 +6,32 @@
 //
 
 import SwiftUI
+import HealthKit
+
+#if os(iOS)
+import UIKit
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Request HealthKit authorization when app launches
+        Task {
+            do {
+                try await HealthKitManager.shared.requestAuthorization()
+            } catch {
+                print("Failed to request HealthKit authorization: \(error)")
+            }
+        }
+        return true
+    }
+}
+#endif
 
 @main
 struct Ready_2_0App: App {
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    #endif
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
