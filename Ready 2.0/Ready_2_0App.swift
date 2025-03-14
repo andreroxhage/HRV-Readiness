@@ -17,11 +17,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         Task {
             do {
                 try await HealthKitManager.shared.requestAuthorization()
+                // Setup background observers after authorization
+                HealthKitManager.shared.setupBackgroundObservers()
             } catch {
                 print("Failed to request HealthKit authorization: \(error)")
             }
         }
         return true
+    }
+    
+    func applicationDidEnterBackground(_ application: UIApplication) {
+        // Schedule background task when app enters background
+        Task {
+            await HealthKitManager.shared.updateSharedHealthData()
+        }
     }
 }
 #endif

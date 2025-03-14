@@ -1,5 +1,6 @@
 import Foundation
 import HealthKit
+import WidgetKit
 
 class HealthKitManager {
     static let shared = HealthKitManager()
@@ -26,6 +27,64 @@ class HealthKitManager {
 
         // Request authorization for the health data types
         try await healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead)
+        
+        // After authorization, enable background delivery
+        await enableBackgroundDelivery()
+        
+        // Setup observers for health data changes
+        setupBackgroundObservers()
+    }
+    
+    private func enableBackgroundDelivery() async {
+        do {
+            // Enable background delivery for steps
+            if let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) {
+                try await healthStore.enableBackgroundDelivery(for: stepType, frequency: .immediate)
+            }
+            
+            // Enable background delivery for active energy
+            if let energyType = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
+                try await healthStore.enableBackgroundDelivery(for: energyType, frequency: .immediate)
+            }
+            
+            // Enable background delivery for heart rate
+            if let heartRateType = HKObjectType.quantityType(forIdentifier: .heartRate) {
+                try await healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate)
+            }
+            
+            print("Background delivery enabled for all health metrics")
+        } catch {
+            print("Error enabling background delivery: \(error)")
+        }
+    }
+
+    // Setup background observers for health data updates
+    func setupBackgroundObservers() {
+        setupObserver(for: .stepCount)
+        setupObserver(for: .activeEnergyBurned)
+        setupObserver(for: .heartRate)
+    }
+    
+    private func setupObserver(for typeIdentifier: HKQuantityTypeIdentifier) {
+        guard let quantityType = HKObjectType.quantityType(forIdentifier: typeIdentifier) else { return }
+        
+        let query = HKObserverQuery(sampleType: quantityType, predicate: nil) { [weak self] query, completionHandler, error in
+            if let error = error {
+                print("Error observing \(typeIdentifier): \(error)")
+                completionHandler()
+                return
+            }
+            
+            // Update the data when changes occur
+            Task {
+                await self?.updateSharedHealthData()
+                // Reload widget timeline when health data changes
+                WidgetCenter.shared.reloadTimelines(ofKind: "Widget_2_0")
+                completionHandler()
+            }
+        }
+        
+        healthStore.execute(query)
     }
 
     enum HealthKitError: Error {

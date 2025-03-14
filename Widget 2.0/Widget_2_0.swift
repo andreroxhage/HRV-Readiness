@@ -24,17 +24,22 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         let currentEntry = getHealthEntry()
         
-        // Schedule updates every 15 minutes
+        // Schedule updates every minute
         var entries: [HealthEntry] = [currentEntry]
         let currentDate = Date()
         
-        for minute in stride(from: 15, through: 60, by: 15) {
+        for minute in stride(from: 1, through: 5, by: 1) {
             let entryDate = Calendar.current.date(byAdding: .minute, value: minute, to: currentDate)!
-            let entry = HealthEntry(date: entryDate, steps: currentEntry.steps, activeEnergy: currentEntry.activeEnergy, heartRate: currentEntry.heartRate)
+            let entry = HealthEntry(
+                date: entryDate,
+                steps: currentEntry.steps,
+                activeEnergy: currentEntry.activeEnergy,
+                heartRate: currentEntry.heartRate
+            )
             entries.append(entry)
         }
         
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate)!
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 1, to: currentDate)!
         let timeline = Timeline(entries: entries, policy: .after(nextUpdate))
         
         completion(timeline)
@@ -44,10 +49,6 @@ struct Provider: TimelineProvider {
         let defaults = sharedDefaults
         let steps = defaults?.double(forKey: "lastSteps") ?? 0
         print("Widget reading - Steps: \(steps)")
-        print("Widget reading - App Group ID... \(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.example.shareddefaults") ?? URL(fileURLWithPath: "/dev/null"))")
-
-        // debugg
-        print("steps: " + String(format: "%.2f", steps))
 
         return HealthEntry(
             date: defaults?.object(forKey: "lastUpdateTime") as? Date ?? Date(),
