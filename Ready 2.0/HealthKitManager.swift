@@ -36,7 +36,7 @@ class HealthKitManager {
 // Extension to share data between app and widget
 extension HealthKitManager {
     // App Group identifier for sharing data between app and widget
-    static let appGroupIdentifier = "group.com.yourdomain.ready2"
+    static let appGroupIdentifier = "group.andreroxhage.Ready-2-0"
 
     // UserDefaults container for sharing data
     var sharedDefaults: UserDefaults? {
