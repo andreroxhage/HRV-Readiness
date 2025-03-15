@@ -7,6 +7,7 @@
 
 import SwiftUI
 import HealthKit
+import CoreData
 
 #if os(iOS)
 import UIKit
@@ -19,6 +20,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 try await HealthKitManager.shared.requestAuthorization()
                 // Setup background observers after authorization
                 HealthKitManager.shared.setupBackgroundObservers()
+                
+                // Initialize CoreData
+                _ = CoreDataManager.shared
             } catch {
                 print("Failed to request HealthKit authorization: \(error)")
             }
@@ -44,6 +48,7 @@ struct Ready_2_0App: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.managedObjectContext, CoreDataManager.shared.viewContext)
         }
     }
 }

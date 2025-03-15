@@ -5,13 +5,14 @@
 //  Created by André Roxhage on 2025-03-13.
 //
 
-import Testing
+import XCTest
 @testable import Ready_2_0
 
-struct Ready_2_0Tests {
+class Ready_2_0Tests: XCTestCase {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    func testExample() {
+        // Write your test here and use XCTest assertions to check expected conditions.
+        XCTAssertTrue(true)
     }
 
 }

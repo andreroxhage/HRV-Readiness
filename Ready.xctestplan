@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "9D9847C5-E2B3-4D80-AB46-92DF99A0347F",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Ready 2.0.xcodeproj",
+        "identifier" : "65C1392C2D82CF8E00FBEDF1",
+        "name" : "Ready 2.0Tests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Ready 2.0.xcodeproj",
+        "identifier" : "65C139362D82CF8E00FBEDF1",
+        "name" : "Ready 2.0UITests"
+      }
+    }
+  ],
+  "version" : 1
+}
