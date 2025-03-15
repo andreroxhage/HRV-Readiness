@@ -217,6 +217,80 @@ class ReadinessViewModel: ObservableObject {
             return .red
         }
     }
+
+    // Get a gradient color based on the score value (0-100)
+    func getGradientColor(for score: Double) -> Color {
+        if score == 0 {
+            return Color.gray.opacity(0.1)
+        }
+        
+        // Map score to the appropriate color using a gradient with less vibrant colors
+        if score >= 80 {
+            // Muted green range (80-100)
+            let intensity = min(1.0, (score - 80) / 20)
+            return Color(red: 0.4, green: 0.6, blue: 0.4).opacity(0.7 + (intensity * 0.3))
+        } else if score >= 50 {
+            // Muted yellow/gold range (50-79)
+            let intensity = (score - 50) / 30
+            return Color(
+                red: 0.7 + (0.1 * (1 - intensity)),
+                green: 0.7,
+                blue: 0.3 * (1 - intensity)
+            )
+        } else if score >= 30 {
+            // Muted orange range (30-49)
+            let intensity = (score - 30) / 20
+            return Color(
+                red: 0.8,
+                green: 0.5 + (0.2 * intensity),
+                blue: 0.2
+            )
+        } else {
+            // Muted red range (0-29)
+            let intensity = min(1.0, score / 30)
+            return Color(
+                red: 0.7,
+                green: 0.2 + (0.3 * intensity),
+                blue: 0.2
+            )
+        }
+    }
+
+    func getGradientBackgroundColor(for score: Double, isDarkMode: Bool) -> Color {
+        if score == 0 {
+            return isDarkMode ? Color.gray.opacity(0.3) : Color.gray.opacity(0.1)
+        }
+        
+        if score >= 80 {
+            // Muted green range (80-100)
+            if isDarkMode {
+                return Color(red: 0.2, green: 0.4, blue: 0.2).opacity(0.4)
+            } else {
+                return Color(red: 0.7, green: 0.8, blue: 0.7).opacity(0.2)
+            }
+        } else if score >= 50 {
+            // Muted yellow/gold range (50-79)
+            if isDarkMode {
+                return Color(red: 0.4, green: 0.4, blue: 0.2).opacity(0.4)
+            } else {
+                return Color(red: 0.8, green: 0.8, blue: 0.6).opacity(0.2)
+            }
+        } else if score >= 30 {
+            // Muted orange range (30-49)
+            if isDarkMode {
+                return Color(red: 0.5, green: 0.3, blue: 0.1).opacity(0.4)
+            } else {
+                return Color(red: 0.9, green: 0.7, blue: 0.5).opacity(0.2)
+            }
+        } else {
+            // Muted red range (0-29)
+            if isDarkMode {
+                return Color(red: 0.5, green: 0.2, blue: 0.2).opacity(0.4)
+            } else {
+                return Color(red: 0.8, green: 0.6, blue: 0.6).opacity(0.2)
+            }
+        }
+    }
     
     // Format the readiness score as a string
     var formattedScore: String {

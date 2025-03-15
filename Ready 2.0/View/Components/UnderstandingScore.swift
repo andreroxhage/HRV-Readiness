@@ -1,0 +1,285 @@
+import SwiftUI
+
+struct UnderstandingScore: View {
+    @ObservedObject var viewModel: ReadinessViewModel
+    @State private var showingInfoOverlay = false
+    @State private var showingDisclaimer = false
+    @Namespace private var animation
+    
+    var body: some View {
+        Button(action: {
+            showingInfoOverlay = true
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 16))
+                
+                Text("Understanding Your Score")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .fontSize(16)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.caption)
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.blue.opacity(0.1))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.blue.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .sheet(isPresented: $showingInfoOverlay) {
+            ScoreInfoOverlay(
+                viewModel: viewModel,
+                showingDisclaimer: $showingDisclaimer,
+                isPresented: $showingInfoOverlay
+            )
+        }
+    }
+}
+
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.2), value: configuration.isPressed)
+    }
+}
+
+struct ScoreInfoOverlay: View {
+    @ObservedObject var viewModel: ReadinessViewModel
+    @Binding var showingDisclaimer: Bool
+    @Binding var isPresented: Bool
+    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.presentationMode) var presentationMode
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Score Categories")
+                            .font(.headline)
+                            .padding(.top, 8)
+                        
+                        ScoreCategoryRow(
+                            title: "Optimal (80-100)",
+                            description: "Your body is well-recovered and ready for high-intensity training.",
+                            color: .green
+                        )
+                        
+                        ScoreCategoryRow(
+                            title: "Moderate (50-79)",
+                            description: "Your body is moderately recovered. Consider moderate-intensity training.",
+                            color: .yellow
+                        )
+                        
+                        ScoreCategoryRow(
+                            title: "Low (30-49)",
+                            description: "Your body shows signs of fatigue. Consider light activity or active recovery.",
+                            color: .orange
+                        )
+                        
+                        ScoreCategoryRow(
+                            title: "Fatigue (0-29)",
+                            description: "Your body needs rest. Focus on recovery and avoid intense training.",
+                            color: .red
+                        )
+                    }
+                    
+                    Divider()
+                    
+                    // Score calculation section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("How Your Score Is Calculated")
+                            .font(.headline)
+                        
+                        Text("Your readiness score is primarily based on Heart Rate Variability (HRV) deviation from your 7-day baseline:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("• Within ±3% of baseline → Optimal (80-100)")
+                            Text("• 3-7% lower → Moderate (50-79)")
+                            Text("• 7-10% lower → Low (30-49)")
+                            Text("• >10% lower → Fatigue (0-29)")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        
+                        Text("Additional adjustments are made based on:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("• Elevated resting heart rate (>5 bpm above baseline): -10%")
+                            Text("• Insufficient sleep (<6 hours): -15%")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    }
+                    
+                    Divider()
+                    
+                    // Readiness modes section
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Readiness Modes")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack(alignment: .top) {
+                                Image(systemName: "sunrise")
+                                    .foregroundColor(.orange)
+                                    .frame(width: 24)
+                                
+                                VStack(alignment: .leading) {
+                                    Text("Morning Mode")
+                                        .font(.subheadline)
+                                        .bold()
+                                    Text("Uses HRV data from 00:00-10:00, ideal for consistent morning assessment")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            
+                            HStack(alignment: .top) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundColor(.blue)
+                                    .frame(width: 24)
+                                
+                                VStack(alignment: .leading) {
+                                    Text("Rolling Mode")
+                                        .font(.subheadline)
+                                        .bold()
+                                    Text("Uses HRV data from the last 6 hours, better for intraday monitoring or irregular schedules")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // Disclaimer section
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                showingDisclaimer.toggle()
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.orange)
+                                Text("Important Disclaimer")
+                                    .font(.headline)
+                                Spacer()
+                                Image(systemName: showingDisclaimer ? "chevron.up" : "chevron.down")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        if showingDisclaimer {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Readiness scores are not exact measurements and their reliability depends on:")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("• Quality and accuracy of your measuring device")
+                                    Text("• Consistency and quantity of data points collected")
+                                    Text("• Individual variations in physiological responses")
+                                    Text("• Environmental factors and measurement conditions")
+                                }
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                
+                                Text("These scores are intended for informational purposes only and should not be used as medical advice or to diagnose, treat, cure or prevent any disease or health condition. Always consult with a healthcare professional for medical advice.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                            }
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
+                            .transition(.opacity)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 30)
+            }
+            .navigationTitle("Understanding Your Score")
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 24))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+        }
+    }
+}
+
+struct ScoreCategoryRow: View {
+    let title: String
+    let description: String
+    let color: Color
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(color)
+                .frame(width: 4, height: 36)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline)
+                    .bold()
+                    .foregroundColor(color)
+                
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct UnderstandingScore_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            UnderstandingScore(viewModel: ReadinessViewModel())
+                .padding()
+                .previewLayout(.sizeThatFits)
+                .previewDisplayName("Button")
+            
+            ScoreInfoOverlay(
+                viewModel: ReadinessViewModel(),
+                showingDisclaimer: .constant(true),
+                isPresented: .constant(true)
+            )
+            .previewDisplayName("Overlay")
+        }
+    }
+}

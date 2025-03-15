@@ -68,264 +68,218 @@ struct ContentView: View {
     @State private var sleepEndTime: Date? = nil
     @State private var isLoading: Bool = false
     @State private var error: Error? = nil
+
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         NavigationView {
-            List {
-                // Mode Selector Section
-                Section {
-                    Picker("Readiness Mode", selection: $readinessMode) {
-                        Text("Morning").tag("morning")
-                        Text("Rolling").tag("rolling")
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: readinessMode) { oldValue, newValue in
-                        print("DEBUG: Mode changed from \(oldValue) to \(newValue)")
+            ZStack {
+                Color.clear
+                    .ignoresSafeArea()
+                
+                List {                
+                    TodaysScoreParticlesView(viewModel: viewModel)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                        .background(Color.clear)
+
+                    Section {
+                        VStack(spacing: 8) {
+                            HStack(spacing: 32) {
+                                Text("Today's Readiness")
+                                    .font(.title)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.bottom, 5)
+                                Text(viewModel.formattedScore)
+                                    .font(.title)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Text(viewModel.readinessCategory.description)
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity)
+                                .transition(.opacity)
+                                .id(viewModel.readinessCategory.description)
+                        }
+                    }.onChange(of: readinessMode) { oldValue, newValue in
                         if oldValue != newValue {
-                            // Immediately update the viewModel's mode
-                            // We'll use string-based mode handling to avoid ReadinessMode enum issues
                             DispatchQueue.main.async {
-                                // The viewModel will handle the conversion from string to enum internally
                                 viewModel.updateReadinessMode(newValue)
                             }
-                            // Force recalculation with the new mode
                             refreshData(forceRecalculation: true)
                         }
                     }
-                } header: {
-                    HStack {
-                        Text("Readiness Mode")
-                        Spacer()
-                        Button(action: {
-                            refreshData(forceRecalculation: true)
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                                .foregroundStyle(.secondary)
+
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("History")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 5)
+                            
+                            CalendarView(viewModel: viewModel)
                         }
                     }
-                }
-                
-                // Readiness Score Section
-                Section {
-                    VStack(spacing: 20) {
-                        // Readiness Score Circle
-                        ZStack {
-                            Circle()
-                                .stroke(
-                                    viewModel.categoryColor.opacity(0.2),
-                                    lineWidth: 15
-                                )
-                                .frame(width: 150, height: 150)
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Score Details")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 5)
                             
-                            Circle()
-                                .trim(from: 0, to: viewModel.readinessScore / 100)
-                                .stroke(
-                                    viewModel.categoryColor,
-                                    style: StrokeStyle(
-                                        lineWidth: 15,
-                                        lineCap: .round
-                                    )
-                                )
-                                .frame(width: 150, height: 150)
-                                .rotationEffect(.degrees(-90))
+                            HStack {
+                                Text("Base Score")
+                                Spacer()
+                                Text("\(String(format: "%.0f", viewModel.readinessScore - viewModel.rhrAdjustment - viewModel.sleepAdjustment))")
+                                    .bold()
+                            }
                             
-                            VStack(spacing: 5) {
-                                Text(viewModel.formattedScore)
-                                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                                
-                                Text(viewModel.readinessCategory.rawValue)
-                                    .font(.headline)
-                                    .foregroundStyle(viewModel.categoryColor)
+                            if viewModel.rhrAdjustment != 0 {
+                                HStack {
+                                    Text("RHR Adjustment")
+                                    Spacer()
+                                    Text("\(String(format: "%+.0f", viewModel.rhrAdjustment))")
+                                        .foregroundStyle(.red)
+                                        .bold()
+                                }
+                            }
+                            
+                            if viewModel.sleepAdjustment != 0 {
+                                HStack {
+                                    Text("Sleep Adjustment")
+                                    Spacer()
+                                    Text("\(String(format: "%+.0f", viewModel.sleepAdjustment))")
+                                        .foregroundStyle(.red)
+                                        .bold()
+                                }
+                            }
+                            
+                            HStack {
+                                Text("Final Score")
+                                Spacer()
+                                Text("\(viewModel.formattedScore)")
+                                    .bold()
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        
-                        // Readiness Description
-                        Text(viewModel.readinessCategory.emoji + " " + viewModel.readinessCategory.description)
-                            .font(.subheadline)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                        
+                    }
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("HRV Analysis")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 5)
+                            
+                            HStack {
+                                Text("7-Day Baseline")
+                                Spacer()
+                                Text("\(Int(viewModel.hrvBaseline)) ms")
+                                    .bold()
+                            }
+                            
+                            HStack {
+                                Text("Today's HRV")
+                                Spacer()
+                                Text("\(Int(viewModel.hrvBaseline * (1 + viewModel.hrvDeviation / 100))) ms")
+                                    .bold()
+                            }
+                            
+                            HStack {
+                                Text("Deviation")
+                                Spacer()
+                                Text(viewModel.formattedHRVDeviation)
+                                    .foregroundStyle(viewModel.hrvDeviationColor)
+                                    .bold()
+                            }
+                            
+                            UnderstandingScore(viewModel: viewModel)
+                        }
+                    }
+
+                    // Mode Selector Section
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Readiness Mode")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.bottom, 5)
+                            
+                            Picker("Readiness Mode", selection: $readinessMode) {
+                                Text("Morning").tag("morning")
+                                Text("Rolling").tag("rolling")
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: readinessMode) { oldValue, newValue in
+                                print("DEBUG: Mode changed from \(oldValue) to \(newValue)")
+                                if oldValue != newValue {
+                                    DispatchQueue.main.async {
+                                        viewModel.updateReadinessMode(newValue)
+                                    }
+                                    refreshData(forceRecalculation: true)
+                                }
+                            }
+                        }
+
                         // Mode indicator
                         HStack {
                             Image(systemName: readinessMode == "morning" ? "sunrise" : "clock.arrow.circlepath")
                                 .foregroundStyle(readinessMode == "morning" ? .orange : .blue)
+                                .symbolEffect(.pulse, options: .repeating, value: readinessMode)
                             
                             Text(readinessMode == "morning" ? "Morning (00:00-10:00)" : "Rolling (Last 6 hours)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity)
-                    }
-                    .padding(.vertical, 10)
-                } header: {
-                    Text("Today's Readiness")
-                }
-                
-                // Score Details Section
-                Section("Score Details") {
-                    HStack {
-                        Text("Base Score")
-                        Spacer()
-                        Text("\(String(format: "%.0f", viewModel.readinessScore - viewModel.rhrAdjustment - viewModel.sleepAdjustment))")
-                            .bold()
-                    }
-                    
-                    if viewModel.rhrAdjustment != 0 {
+                        .contentTransition(.symbolEffect(.replace))
+                    } header: {
                         HStack {
-                            Text("RHR Adjustment")
                             Spacer()
-                            Text("\(String(format: "%+.0f", viewModel.rhrAdjustment))")
-                                .foregroundStyle(.red)
-                                .bold()
-                        }
-                    }
-                    
-                    if viewModel.sleepAdjustment != 0 {
-                        HStack {
-                            Text("Sleep Adjustment")
-                            Spacer()
-                            Text("\(String(format: "%+.0f", viewModel.sleepAdjustment))")
-                                .foregroundStyle(.red)
-                                .bold()
-                        }
-                    }
-                    
-                    HStack {
-                        Text("Final Score")
-                        Spacer()
-                        Text("\(viewModel.formattedScore)")
-                            .bold()
-                    }
-                }
-                
-                // HRV Analysis Section
-                Section("HRV Analysis") {
-                    HStack {
-                        Text("7-Day Baseline")
-                        Spacer()
-                        Text("\(Int(viewModel.hrvBaseline)) ms")
-                            .bold()
-                    }
-                    
-                    HStack {
-                        Text("Today's HRV")
-                        Spacer()
-                        Text("\(Int(viewModel.hrvBaseline * (1 + viewModel.hrvDeviation / 100))) ms")
-                            .bold()
-                    }
-                    
-                    HStack {
-                        Text("Deviation")
-                        Spacer()
-                        Text(viewModel.formattedHRVDeviation)
-                            .foregroundStyle(viewModel.hrvDeviationColor)
-                            .bold()
-                    }
-                }
-                
-                // Trend Section
-                Section("7-Day Trend") {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(viewModel.pastScores.prefix(7).reversed(), id: \.date) { score in
-                                VStack(spacing: 8) {
-                                    Text(formatDate(score.date ?? Date()))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    
-                                    ZStack {
-                                        Circle()
-                                            .fill(getCategoryColor(score.readinessCategory ?? "Moderate").opacity(0.2))
-                                            .frame(width: 50, height: 50)
-                                        
-                                        Text("\(Int(score.score))")
-                                            .font(.system(.body, design: .rounded))
-                                            .bold()
-                                    }
-                                    
-                                    Text(score.readinessCategory ?? "Moderate")
-                                        .font(.caption2)
-                                        .foregroundStyle(getCategoryColor(score.readinessCategory ?? "Moderate"))
-                                }
-                                .frame(width: 70)
-                                .padding(.vertical, 8)
+                            Button(action: {
+                                refreshData(forceRecalculation: true)
+                            }) {
+                                Image(systemName: "arrow.clockwise")
+                                    .foregroundStyle(.secondary)
                             }
                         }
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 8)
                     }
-                    .frame(height: 120)
                 }
-                
-                // Understanding Section (collapsible)
-                Section {
-                    Button(action: {
-                        showingInfo.toggle()
-                    }) {
-                        HStack {
-                            Text("Understanding Your Score")
-                            Spacer()
-                            Image(systemName: showingInfo ? "chevron.up" : "chevron.down")
+                .refreshable {
+                    refreshData(forceRecalculation: true)
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .overlay {
+                    if viewModel.isLoading {
+                        ZStack {
+                            Color.black.opacity(0.1)
+                                .ignoresSafeArea()
+                            ProgressView()
+                                .scaleEffect(1.5)
                         }
                     }
-                    
-                    if showingInfo {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ScoreCategoryRow(
-                                title: "Optimal (80-100)",
-                                emoji: "✅",
-                                description: "Your body is well-recovered and ready for high-intensity training.",
-                                color: .green
-                            )
-                            
-                            ScoreCategoryRow(
-                                title: "Moderate (50-79)",
-                                emoji: "🟡",
-                                description: "Your body is moderately recovered. Consider moderate-intensity training.",
-                                color: .yellow
-                            )
-                            
-                            ScoreCategoryRow(
-                                title: "Low (30-49)",
-                                emoji: "🔴",
-                                description: "Your body shows signs of fatigue. Consider light activity or active recovery.",
-                                color: .orange
-                            )
-                            
-                            ScoreCategoryRow(
-                                title: "Fatigue (0-29)",
-                                emoji: "💀",
-                                description: "Your body needs rest. Focus on recovery and avoid intense training.",
-                                color: .red
-                            )
-                        }
-                        .padding(.vertical, 8)
+                }
+                .alert("Error", isPresented: .constant(viewModel.error != nil)) {
+                    Button("OK") {
+                        viewModel.error = nil
                     }
+                } message: {
+                    Text(viewModel.error?.localizedDescription ?? "Unknown error")
                 }
             }
-            .navigationTitle("Readiness")
-            .refreshable {
-                refreshData(forceRecalculation: true)
-            }
-            .overlay {
-                if viewModel.isLoading {
-                    ZStack {
-                        Color.black.opacity(0.1)
-                            .ignoresSafeArea()
-                        ProgressView()
-                            .scaleEffect(1.5)
-                    }
-                }
-            }
-            .alert("Error", isPresented: .constant(viewModel.error != nil)) {
-                Button("OK") {
-                    viewModel.error = nil
-                }
-            } message: {
-                Text(viewModel.error?.localizedDescription ?? "Unknown error")
-            }
+            .background(viewModel.getGradientBackgroundColor(
+                for: viewModel.readinessScore, 
+                isDarkMode: colorScheme == .dark
+            )
+            .ignoresSafeArea())
         }
         .onAppear {
             // Store the initial mode
@@ -406,49 +360,6 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.isLoading = false
             }
-        }
-    }
-    
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E"
-        return formatter.string(from: date)
-    }
-    
-    private func getCategoryColor(_ category: String) -> Color {
-        switch category {
-        case "Optimal":
-            return .green
-        case "Moderate":
-            return .yellow
-        case "Low":
-            return .orange
-        case "Fatigue":
-            return .red
-        default:
-            return .gray
-        }
-    }
-}
-
-struct ScoreCategoryRow: View {
-    let title: String
-    let emoji: String
-    let description: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("\(title) \(emoji)")
-                    .font(.subheadline)
-                    .bold()
-                    .foregroundStyle(color)
-            }
-            
-            Text(description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 }
