@@ -45,86 +45,67 @@ struct SettingsView: View {
                     Text("Morning mode is recommended for most users as it provides more consistent measurements during sleep.")
                 }
                 
-                // Health Data Section
+                // Settings
+                Section {
+                    NavigationLink(destination: NotificationSettingsView()) {
+                        HStack {
+                            Image(systemName: "bell.badge")
+                                .foregroundStyle(.gray)
+                            Text("Notifications")
+                            Spacer()
+                        }
+                    }
+
+                    NavigationLink(destination: AppearanceSettingsView()) {
+                        HStack {
+                            Image(systemName: "paintbrush")
+                                .foregroundStyle(.gray)
+                            Text("Appearance")
+                            Spacer()
+                        }
+                    }
+                } header: {
+                    Text("Settings")
+                }
+
+                // Health Data
                 Section {
                     Button(action: {
                         showHealthKitAuth = true
                     }) {
                         HStack {
                             Image(systemName: "heart.text.square")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.gray)
                             Text("Health Data Access")
+                                .foregroundStyle(.primary)
+                                .tint(.primary)
                             Spacer()
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
                         }
                     }
                 } header: {
-                    Text("Health Integration")
+                    Text("Settings")
                 } footer: {
                     Text("Review and manage health data permissions used by the app.")
                 }
-                
-                // Notifications Section
-                Section {
-                    NavigationLink(destination: NotificationSettingsView()) {
-                        HStack {
-                            Image(systemName: "bell.badge")
-                                .foregroundStyle(.blue)
-                            Text("Notifications")
-                        }
-                    }
-                } header: {
-                    Text("Notifications")
-                } footer: {
-                    Text("Configure when and how you want to receive readiness updates.")
-                }
-                
-                // App Settings Section
-                Section {
-                    NavigationLink(destination: AppearanceSettingsView()) {
-                        HStack {
-                            Image(systemName: "paintbrush")
-                                .foregroundStyle(.purple)
-                            Text("Appearance")
-                        }
-                    }
-                    
-                    NavigationLink(destination: DataManagementView()) {
-                        HStack {
-                            Image(systemName: "externaldrive")
-                                .foregroundStyle(.green)
-                            Text("Data Management")
-                        }
-                    }
-                } header: {
-                    Text("App Settings")
-                }
+            
                 
                 // About Section
                 Section {
-                    Link(destination: URL(string: "https://ready.andreroxhage.com/privacy")!) {
+                    NavigationLink(destination: PrivacyPolicyView()) {
                         HStack {
                             Image(systemName: "hand.raised")
                                 .foregroundStyle(.gray)
                             Text("Privacy Policy")
                             Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
                         }
                     }
                     
-                    Link(destination: URL(string: "https://ready.andreroxhage.com/terms")!) {
+                    NavigationLink(destination: TermsOfServiceView()) {
                         HStack {
                             Image(systemName: "doc.text")
                                 .foregroundStyle(.gray)
                             Text("Terms of Service")
                             Spacer()
-                            Image(systemName: "arrow.up.right.square")
-                                .foregroundStyle(.secondary)
-                                .font(.caption)
                         }
                     }
                     
@@ -245,64 +226,6 @@ struct AppearanceSettingsView: View {
         }
         .navigationTitle("Appearance")
         .preferredColorScheme(viewModel.colorScheme)
-    }
-}
-
-struct DataManagementView: View {
-    @State private var showingExportSheet = false
-    @State private var showingDeleteConfirmation = false
-    
-    var body: some View {
-        List {
-            Section {
-                Button(action: {
-                    showingExportSheet = true
-                }) {
-                    HStack {
-                        Image(systemName: "square.and.arrow.up")
-                            .foregroundStyle(.blue)
-                        Text("Export Data")
-                    }
-                }
-                
-                Button(action: {
-                    // Implement import
-                }) {
-                    HStack {
-                        Image(systemName: "square.and.arrow.down")
-                            .foregroundStyle(.green)
-                        Text("Import Data")
-                    }
-                }
-            } header: {
-                Text("Data Transfer")
-            }
-            
-            Section {
-                Button(action: {
-                    showingDeleteConfirmation = true
-                }) {
-                    HStack {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.red)
-                        Text("Delete All Data")
-                    }
-                }
-            } header: {
-                Text("Data Removal")
-            } footer: {
-                Text("This will permanently delete all your readiness scores and settings.")
-            }
-        }
-        .navigationTitle("Data Management")
-        .alert("Delete All Data?", isPresented: $showingDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                // Implement delete
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone. All your data will be permanently deleted.")
-        }
     }
 }
 
