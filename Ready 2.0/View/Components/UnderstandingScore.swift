@@ -16,10 +16,8 @@ struct UnderstandingScore: View {
                     .font(.system(size: 16))
                 
                 Text("Understanding Your Score")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .fontSize(16)
-                
+                  .font(.system(size: 16, weight: .medium, design: .default))
+
                 Spacer()
                 
                 Image(systemName: "chevron.right")
@@ -104,15 +102,15 @@ struct ScoreInfoOverlay: View {
                         Text("How Your Score Is Calculated")
                             .font(.headline)
                         
-                        Text("Your readiness score is primarily based on Heart Rate Variability (HRV) deviation from your 7-day baseline:")
+                        Text("Your readiness score is primarily based on Heart Rate Variability (HRV) deviation from your baseline:")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("• Within ±3% of baseline → Optimal (80-100)")
-                            Text("• 3-7% lower → Moderate (50-79)")
-                            Text("• 7-10% lower → Low (30-49)")
-                            Text("• >10% lower → Fatigue (0-29)")
+                            Text("Within ±3% of baseline → Optimal (80-100)")
+                            Text("3-7% lower → Moderate (50-79)")
+                            Text("7-10% lower → Low (30-49)")
+                            Text(">10% lower → Fatigue (0-29)")
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -123,8 +121,8 @@ struct ScoreInfoOverlay: View {
                             .padding(.top, 4)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("• Elevated resting heart rate (>5 bpm above baseline): -10%")
-                            Text("• Insufficient sleep (<6 hours): -15%")
+                            Text("Elevated resting heart rate (>5 bpm above baseline): -10%")
+                            Text("Insufficient sleep (<6 hours): -15%")
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -201,10 +199,10 @@ struct ScoreInfoOverlay: View {
                                     .padding(.top, 8)
                                 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("• Quality and accuracy of your measuring device")
-                                    Text("• Consistency and quantity of data points collected")
-                                    Text("• Individual variations in physiological responses")
-                                    Text("• Environmental factors and measurement conditions")
+                                    Text("Quality and accuracy of your measuring device")
+                                    Text("Consistency and quantity of data points collected")
+                                    Text("Individual variations in physiological responses")
+                                    Text("Environmental factors and measurement conditions")
                                 }
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -223,8 +221,12 @@ struct ScoreInfoOverlay: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
-            .navigationTitle("Understanding Your Score")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Understanding your score")
+                        .font(.title)
+                        .fontWeight(.medium)
+                }
                 ToolbarItem(placement: .automatic) {
                     Button(action: {
                         presentationMode.wrappedValue.dismiss()

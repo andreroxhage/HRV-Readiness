@@ -8,6 +8,7 @@
 import SwiftUI
 import HealthKit
 import CoreData
+import UIKit
 
 // Create a simple wrapper for the HealthKitManager
 // This is a temporary solution until we fix the module structure
@@ -58,6 +59,7 @@ struct ContentView: View {
     @AppStorage("readinessMode") private var readinessMode: String = "morning"
     @State private var showingInfo = false
     @State private var previousMode: String = ""
+    @State private var showingSettings = false
     
     // Health metrics state variables
     @State private var hrv: Double = 0
@@ -85,16 +87,21 @@ struct ContentView: View {
 
                     Section {
                         VStack(spacing: 8) {
-                            HStack(spacing: 32) {
+                            HStack {
                                 Text("Today's Readiness")
                                     .font(.title)
                                     .fontWeight(.medium)
                                     .foregroundStyle(.primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.bottom, 5)
-                                Text(viewModel.formattedScore)
-                                    .font(.title)
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 2) {
+                                        Text(viewModel.formattedScore)
+                                            .font(.title)
+                                            .foregroundStyle(.secondary)
+                                        Text("/ 100")
+                                            .font(.body)
+                                            .foregroundStyle(.secondary)
+                                }
                             }
                             
                             Text(viewModel.readinessCategory.description)
@@ -160,7 +167,7 @@ struct ContentView: View {
                             }
                             
                             HStack {
-                                Text("Final Score")
+                                Text("Final Score (incl. sleep and resting heart rate)")
                                 Spacer()
                                 Text("\(viewModel.formattedScore)")
                                     .bold()
@@ -201,55 +208,6 @@ struct ContentView: View {
                             UnderstandingScore(viewModel: viewModel)
                         }
                     }
-
-                    // Mode Selector Section
-                    Section {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Readiness Mode")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 5)
-                            
-                            Picker("Readiness Mode", selection: $readinessMode) {
-                                Text("Morning").tag("morning")
-                                Text("Rolling").tag("rolling")
-                            }
-                            .pickerStyle(.segmented)
-                            .onChange(of: readinessMode) { oldValue, newValue in
-                                print("DEBUG: Mode changed from \(oldValue) to \(newValue)")
-                                if oldValue != newValue {
-                                    DispatchQueue.main.async {
-                                        viewModel.updateReadinessMode(newValue)
-                                    }
-                                    refreshData(forceRecalculation: true)
-                                }
-                            }
-                        }
-
-                        // Mode indicator
-                        HStack {
-                            Image(systemName: readinessMode == "morning" ? "sunrise" : "clock.arrow.circlepath")
-                                .foregroundStyle(readinessMode == "morning" ? .orange : .blue)
-                                .symbolEffect(.pulse, options: .repeating, value: readinessMode)
-                            
-                            Text(readinessMode == "morning" ? "Morning (00:00-10:00)" : "Rolling (Last 6 hours)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .contentTransition(.symbolEffect(.replace))
-                    } header: {
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                refreshData(forceRecalculation: true)
-                            }) {
-                                Image(systemName: "arrow.clockwise")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
                 }
                 .refreshable {
                     refreshData(forceRecalculation: true)
@@ -267,12 +225,51 @@ struct ContentView: View {
                         }
                     }
                 }
-                .alert("Error", isPresented: .constant(viewModel.error != nil)) {
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            showingSettings = true
+                        }) {
+                            Image(systemName: "gearshape")
+                                .foregroundStyle(colorScheme == .dark ? .white : .black)
+                        }
+                    }
+                }
+                .sheet(isPresented: $showingSettings) {
+                    SettingsView(viewModel: viewModel)
+                }
+                .alert(
+                    "Readiness Update Failed",
+                    isPresented: Binding(
+                        get: { viewModel.error != nil },
+                        set: { if !$0 { viewModel.error = nil } }
+                    )
+                ) {
                     Button("OK") {
                         viewModel.error = nil
                     }
+                    
+                    if let error = viewModel.error,
+                       error.recoverySuggestion != nil {
+                        Button("Help") {
+                            if case .healthKitAuthorizationRequired = error {
+                                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(settingsUrl)
+                                }
+                            }
+                        }
+                    }
                 } message: {
-                    Text(viewModel.error?.localizedDescription ?? "Unknown error")
+                    if let error = viewModel.error {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(error.localizedDescription)
+                            if let suggestion = error.recoverySuggestion {
+                                Text(suggestion)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
             }
             .background(viewModel.getGradientBackgroundColor(
@@ -354,11 +351,6 @@ struct ContentView: View {
                 )
 
                 error = nil
-            }
-            
-            // Set isLoading to false after all async operations are complete
-            DispatchQueue.main.async {
-                self.isLoading = false
             }
         }
     }

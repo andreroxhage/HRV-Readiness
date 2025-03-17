@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreData
 
 class ReadinessViewModel: ObservableObject {
     @Published var readinessScore: Double = 0
@@ -10,7 +11,7 @@ class ReadinessViewModel: ObservableObject {
     @Published var rhrAdjustment: Double = 0
     @Published var sleepAdjustment: Double = 0
     @Published var isLoading: Bool = false
-    @Published var error: Error?
+    @Published var error: ReadinessError?
     @Published var pastScores: [ReadinessScore] = []
     @Published var readinessMode: ReadinessMode = .morning
     
@@ -116,36 +117,63 @@ class ReadinessViewModel: ObservableObject {
         isLoading = true
         error = nil
         
-        // Process on a background thread
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-            
-            if let score = self.readinessService.processAndSaveTodaysData(
-                hrv: hrv,
-                restingHeartRate: restingHeartRate,
-                sleepHours: sleepHours,
-                sleepQuality: sleepQuality
-            ) {
-                // Update UI on main thread
-                DispatchQueue.main.async {
-                    self.readinessScore = score.score
-                    self.readinessCategory = ReadinessCategory(rawValue: score.readinessCategory ?? "Moderate") ?? .moderate
-                    self.hrvBaseline = score.hrvBaseline
-                    self.hrvDeviation = score.hrvDeviation
-                    self.rhrAdjustment = score.rhrAdjustment
-                    self.sleepAdjustment = score.sleepAdjustment
-                    self.isLoading = false
-                    
-                    // Reload past scores
-                    self.loadPastScores(days: 30)
+        Task {
+            do {
+                // Validate input data
+                let validationResult = validateInputDataWithHRV(
+                    hrv: hrv,
+                    restingHeartRate: restingHeartRate,
+                    sleepHours: sleepHours
+                )
+                
+                if !validationResult.isValid {
+                    await MainActor.run {
+                        self.error = .insufficientData(missingMetrics: validationResult.missingMetrics)
+                        self.isLoading = false
+                    }
+                    return
                 }
-            } else {
-                DispatchQueue.main.async {
-                    self.error = NSError(domain: "ReadinessViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to calculate readiness score"])
-                    self.isLoading = false
+                
+                let score = readinessService.processAndSaveTodaysData(
+                    hrv: hrv,
+                    restingHeartRate: restingHeartRate,
+                    sleepHours: sleepHours,
+                    sleepQuality: sleepQuality
+                )
+
+                if let score = score {
+                    // Update UI on main thread
+                    await MainActor.run {
+                        self.readinessScore = score.score
+                        self.readinessCategory = ReadinessCategory(rawValue: score.readinessCategory ?? "Moderate") ?? .moderate
+                        self.hrvBaseline = score.hrvBaseline
+                        self.hrvDeviation = score.hrvDeviation
+                        self.rhrAdjustment = score.rhrAdjustment
+                        self.sleepAdjustment = score.sleepAdjustment
+                        self.isLoading = false
+                        
+                        // Reload past scores
+                        self.loadPastScores(days: 30)
+                    }
+                } else {
+                    await MainActor.run {
+                        self.error = .dataProcessingFailed
+                        self.isLoading = false
+                    }
                 }
             }
         }
+    }
+    
+    // Helper function to validate input data with HRV in a sendable way
+    private func validateInputDataWithHRV(hrv: Double, restingHeartRate: Double, sleepHours: Double) -> (isValid: Bool, missingMetrics: [String]) {
+        var missingMetrics: [String] = []
+        
+        if hrv <= 0 { missingMetrics.append("Heart Rate Variability") }
+        if restingHeartRate <= 0 { missingMetrics.append("Resting Heart Rate") }
+        if sleepHours <= 0 { missingMetrics.append("Sleep Duration") }
+        
+        return (missingMetrics.isEmpty, missingMetrics)
     }
     
     func calculateAndSaveReadinessScoreForCurrentMode(restingHeartRate: Double, sleepHours: Double, sleepQuality: Int, forceRecalculation: Bool = false) {
@@ -159,6 +187,16 @@ class ReadinessViewModel: ObservableObject {
         // Process on a background thread
         Task {
             do {
+                // Validate input data
+                let validationResult = await validateInputData(restingHeartRate: restingHeartRate, sleepHours: sleepHours)
+                if !validationResult.isValid {
+                    await MainActor.run {
+                        self.error = .insufficientData(missingMetrics: validationResult.missingMetrics)
+                        self.isLoading = false
+                    }
+                    return
+                }
+                
                 if let score = try await readinessService.processAndSaveTodaysDataForCurrentMode(
                     restingHeartRate: restingHeartRate,
                     sleepHours: sleepHours,
@@ -183,19 +221,34 @@ class ReadinessViewModel: ObservableObject {
                     }
                 } else {
                     await MainActor.run {
-                        print("DEBUG: Failed to calculate readiness score")
-                        self.error = NSError(domain: "ReadinessViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to calculate readiness score"])
+                        self.error = .dataProcessingFailed
                         self.isLoading = false
                     }
                 }
+            } catch let error as ReadinessError {
+                await MainActor.run {
+                    print("DEBUG: ReadinessError calculating readiness score: \(error)")
+                    self.error = error
+                    self.isLoading = false
+                }
             } catch {
                 await MainActor.run {
-                    print("DEBUG: Error calculating readiness score: \(error)")
-                    self.error = error
+                    print("DEBUG: Unknown error calculating readiness score: \(error)")
+                    self.error = .unknownError(error)
                     self.isLoading = false
                 }
             }
         }
+    }
+    
+    // Helper function to validate input data in a sendable way
+    private func validateInputData(restingHeartRate: Double, sleepHours: Double) async -> (isValid: Bool, missingMetrics: [String]) {
+        var missingMetrics: [String] = []
+        
+        if restingHeartRate <= 0 { missingMetrics.append("Resting Heart Rate") }
+        if sleepHours <= 0 { missingMetrics.append("Sleep Duration") }
+        
+        return (missingMetrics.isEmpty, missingMetrics)
     }
     
     // Get the 7-day trend of readiness scores
@@ -206,6 +259,9 @@ class ReadinessViewModel: ObservableObject {
     
     // Get the color for the current readiness category
     var categoryColor: Color {
+        if readinessScore == 0 {
+            return .gray
+        }
         switch readinessCategory {
         case .optimal:
             return .green
@@ -220,8 +276,8 @@ class ReadinessViewModel: ObservableObject {
 
     // Get a gradient color based on the score value (0-100)
     func getGradientColor(for score: Double) -> Color {
-        if score == 0 {
-            return Color.gray.opacity(0.1)
+        if score <= 0 {
+            return Color.gray.opacity(0.5)
         }
         
         // Map score to the appropriate color using a gradient with less vibrant colors
@@ -257,7 +313,7 @@ class ReadinessViewModel: ObservableObject {
     }
 
     func getGradientBackgroundColor(for score: Double, isDarkMode: Bool) -> Color {
-        if score == 0 {
+        if score <= 0 {
             return isDarkMode ? Color.gray.opacity(0.3) : Color.gray.opacity(0.1)
         }
         
@@ -305,6 +361,9 @@ class ReadinessViewModel: ObservableObject {
     
     // Get the color for the HRV deviation
     var hrvDeviationColor: Color {
+        if hrvBaseline == 0 || hrvDeviation == 0 {
+            return .gray
+        }
         if hrvDeviation >= 0 {
             return .green
         } else if hrvDeviation > -7 {
