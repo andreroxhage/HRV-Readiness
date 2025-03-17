@@ -191,17 +191,23 @@ struct NotificationSettingsView: View {
 }
 
 struct AppearanceSettingsView: View {
-    @AppStorage("useSystemAppearance") private var useSystemAppearance = true
-    @AppStorage("appAppearance") private var appAppearance = "light"
-    @AppStorage("showParticles") private var showParticles = true
+    @Environment(\.appearanceViewModel) private var viewModel
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         List {
             Section {
-                Toggle("Use System Settings", isOn: $useSystemAppearance)
+                Toggle("Use System Settings", isOn: Binding(
+                    get: { viewModel.useSystemAppearance },
+                    set: { viewModel.useSystemAppearance = $0 }
+                ))
                 
-                if !useSystemAppearance {
-                    Picker("Appearance", selection: $appAppearance) {
+                if !viewModel.useSystemAppearance {
+                    Picker("Appearance", selection: Binding(
+                        get: { viewModel.appAppearance },
+                        set: { viewModel.appAppearance = $0 }
+                    )) {
                         Text("Light").tag("light")
                         Text("Dark").tag("dark")
                     }
@@ -209,17 +215,36 @@ struct AppearanceSettingsView: View {
                 }
             } header: {
                 Text("Theme")
+            } footer: {
+                Text("Choose between system settings or a custom theme.")
             }
             
             Section {
-                Toggle("Show Score Particles", isOn: $showParticles)
+                Toggle("Show Score Particles", isOn: Binding(
+                    get: { viewModel.showParticles },
+                    set: { viewModel.showParticles = $0 }
+                ))
             } header: {
                 Text("Visual Effects")
             } footer: {
                 Text("Particles show a visual representation of your readiness score.")
             }
+            
+            Section {
+                Button(role: .destructive) {
+                    viewModel.resetToDefaults()
+                } label: {
+                    HStack {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Reset to Defaults")
+                    }
+                }
+            } footer: {
+                Text("Restore all appearance settings to their default values.")
+            }
         }
         .navigationTitle("Appearance")
+        .preferredColorScheme(viewModel.colorScheme)
     }
 }
 
@@ -313,11 +338,11 @@ struct HealthKitAuthView: View {
                             UIApplication.shared.open(url)
                         }
                     }) {
-                        Text("Open Health Settings")
+                        Text("Open Settings")
                             .frame(maxWidth: .infinity)
                     }
                 } footer: {
-                    Text("You can manage app permissions in the Health app settings.")
+                    Text("You can manage app permissions in the settings.")
                 }
             }
             .toolbar {

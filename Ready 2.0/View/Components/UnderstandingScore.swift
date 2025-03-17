@@ -5,6 +5,7 @@ struct UnderstandingScore: View {
     @State private var showingInfoOverlay = false
     @State private var showingDisclaimer = false
     @Namespace private var animation
+    @Environment(\.appearanceViewModel) private var appearanceViewModel
     
     var body: some View {
         Button(action: {
@@ -12,11 +13,11 @@ struct UnderstandingScore: View {
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "info.circle.fill")
-                    .foregroundColor(.blue)
-                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
+                    .font(.system(size: 12))
                 
-                Text("Understanding Your Score")
-                  .font(.system(size: 16, weight: .medium, design: .default))
+                Text("Understand Your Score")
+                  .font(.system(size: 12))
 
                 Spacer()
                 
@@ -24,16 +25,7 @@ struct UnderstandingScore: View {
                     .foregroundColor(.secondary)
                     .font(.caption)
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.blue.opacity(0.1))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(Color.blue.opacity(0.2), lineWidth: 1)
-            )
+            .padding(.top, 12)
         }
         .buttonStyle(ScaleButtonStyle())
         .sheet(isPresented: $showingInfoOverlay) {
@@ -58,7 +50,6 @@ struct ScoreInfoOverlay: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @Binding var showingDisclaimer: Bool
     @Binding var isPresented: Bool
-    @Environment(\.colorScheme) var colorScheme
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
@@ -223,7 +214,7 @@ struct ScoreInfoOverlay: View {
             }
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text("Understanding your score")
+                    Text("Understand Your Score")
                         .font(.title)
                         .fontWeight(.medium)
                 }

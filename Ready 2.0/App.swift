@@ -49,6 +49,7 @@ struct Ready_2_0App: App {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, CoreDataManager.shared.viewContext)
+                .environment(\.appearanceViewModel, AppearanceViewModel.shared)
         }
     }
 }

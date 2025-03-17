@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CalendarView: View {
     @ObservedObject var viewModel: ReadinessViewModel
+    @Environment(\.appearanceViewModel) private var appearanceViewModel
     let monthsToShow = 6
     
     // Calendar components

@@ -56,6 +56,7 @@ class HealthDataProvider {
 
 struct ContentView: View {
     @ObservedObject var viewModel = ReadinessViewModel()
+    @StateObject private var appearanceViewModel = AppearanceViewModel.shared
     @AppStorage("readinessMode") private var readinessMode: String = "morning"
     @State private var showingInfo = false
     @State private var previousMode: String = ""
@@ -71,8 +72,6 @@ struct ContentView: View {
     @State private var isLoading: Bool = false
     @State private var error: Error? = nil
 
-    @Environment(\.colorScheme) private var colorScheme
-    
     var body: some View {
         NavigationView {
             ZStack {
@@ -80,10 +79,12 @@ struct ContentView: View {
                     .ignoresSafeArea()
                 
                 List {                
-                    TodaysScoreParticlesView(viewModel: viewModel)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
-                        .background(Color.clear)
+                    if appearanceViewModel.showParticles {
+                        TodaysScoreParticlesView(viewModel: viewModel)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
+                            .background(Color.clear)
+                    }
 
                     Section {
                         VStack(spacing: 8) {
@@ -202,7 +203,6 @@ struct ContentView: View {
                                 Spacer()
                                 Text(viewModel.formattedHRVDeviation)
                                     .foregroundStyle(viewModel.hrvDeviationColor)
-                                    .bold()
                             }
                             
                             UnderstandingScore(viewModel: viewModel)
@@ -231,7 +231,7 @@ struct ContentView: View {
                             showingSettings = true
                         }) {
                             Image(systemName: "gearshape")
-                                .foregroundStyle(colorScheme == .dark ? .white : .black)
+                                .foregroundStyle(appearanceViewModel.colorScheme == .dark ? .white : .black)
                         }
                     }
                 }
@@ -248,17 +248,6 @@ struct ContentView: View {
                     Button("OK") {
                         viewModel.error = nil
                     }
-                    
-                    if let error = viewModel.error,
-                       error.recoverySuggestion != nil {
-                        Button("Help") {
-                            if case .healthKitAuthorizationRequired = error {
-                                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(settingsUrl)
-                                }
-                            }
-                        }
-                    }
                 } message: {
                     if let error = viewModel.error {
                         VStack(alignment: .leading, spacing: 8) {
@@ -273,13 +262,13 @@ struct ContentView: View {
                 }
             }
             .background(viewModel.getGradientBackgroundColor(
-                for: viewModel.readinessScore, 
-                isDarkMode: colorScheme == .dark
+                for: viewModel.readinessScore,
+                isDarkMode: appearanceViewModel.colorScheme == .dark
             )
             .ignoresSafeArea())
         }
+        .preferredColorScheme(appearanceViewModel.colorScheme)
         .onAppear {
-            // Store the initial mode
             previousMode = readinessMode
             fetchHealthData()
         }

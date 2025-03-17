@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 struct TodaysScoreParticlesView: View {
     @ObservedObject var viewModel: ReadinessViewModel
+    @Environment(\.appearanceViewModel) private var appearanceViewModel
     @AppStorage("readinessMode") private var readinessMode: String = "morning"
     @State private var isAnimating = false
     @State private var isTapped = false
@@ -12,17 +14,19 @@ struct TodaysScoreParticlesView: View {
                 .fill(Color.black.opacity(0.05))
                 .frame(width: 300, height: 300)
             
-            // Particle System
-            ParticleSystem(
-                readinessScore: viewModel.readinessScore,
-                categoryColor: viewModel.categoryColor,
-                isAnimating: isAnimating,
-                isTapped: isTapped
-            )
-            .frame(width: 300, height: 300)
-            .clipShape(Circle())
+            if appearanceViewModel.showParticles && !UIAccessibility.isReduceMotionEnabled {
+                // Particle System
+                ParticleSystem(
+                    readinessScore: viewModel.readinessScore,
+                    categoryColor: viewModel.categoryColor,
+                    isAnimating: isAnimating,
+                    isTapped: isTapped
+                )
+                .frame(width: 300, height: 300)
+                .clipShape(Circle())
+            }
             
-            // Central Core
+            // Central Core (always shown)
             Circle()
                 .fill(
                     RadialGradient(
@@ -37,15 +41,16 @@ struct TodaysScoreParticlesView: View {
         .frame(maxWidth: .infinity)
         .background(.clear)
         .onTapGesture {
-            // Trigger the tap effect
-            withAnimation {
-                isTapped = true
-            }
-            
-            // Reset after a delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            // Only animate if particles are enabled and reduce motion is off
+            if appearanceViewModel.showParticles && !UIAccessibility.isReduceMotionEnabled {
                 withAnimation {
-                    isTapped = false
+                    isTapped = true
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    withAnimation {
+                        isTapped = false
+                    }
                 }
             }
         }
