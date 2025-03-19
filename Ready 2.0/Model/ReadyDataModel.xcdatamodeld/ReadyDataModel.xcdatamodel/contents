@@ -10,10 +10,12 @@
         <relationship name="readinessScore" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="ReadinessScore" inverseName="healthMetrics" inverseEntity="ReadinessScore"/>
     </entity>
     <entity name="ReadinessScore" representedClassName="ReadinessScore" syncable="YES" codeGenerationType="class">
+        <attribute name="baselinePeriod" attributeType="Integer 16" defaultValueString="7" usesScalarValueType="YES"/>
+        <attribute name="calculationTimestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="date" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="hrvBaseline" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="hrvDeviation" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
-        <attribute name="readinessCategory" attributeType="String"/>
+        <attribute name="readinessCategory" attributeType="String" defaultValueString="Unknown"/>
         <attribute name="readinessMode" attributeType="String" defaultValueString="morning"/>
         <attribute name="rhrAdjustment" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
         <attribute name="score" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>

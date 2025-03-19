@@ -135,7 +135,7 @@ class CoreDataManager {
     
     // MARK: - Readiness Score Operations
     
-    func saveReadinessScore(date: Date, score: Double, hrvBaseline: Double, hrvDeviation: Double, readinessCategory: String, rhrAdjustment: Double, sleepAdjustment: Double, readinessMode: String, healthMetrics: HealthMetrics) -> ReadinessScore {
+    func saveReadinessScore(date: Date, score: Double, hrvBaseline: Double, hrvDeviation: Double, readinessCategory: String, rhrAdjustment: Double, sleepAdjustment: Double, readinessMode: String, baselinePeriod: Int, healthMetrics: HealthMetrics) -> ReadinessScore {
         let context = viewContext
         let readinessScore = ReadinessScore(context: context)
         
@@ -147,6 +147,8 @@ class CoreDataManager {
         readinessScore.rhrAdjustment = rhrAdjustment
         readinessScore.sleepAdjustment = sleepAdjustment
         readinessScore.readinessMode = readinessMode
+        readinessScore.baselinePeriod = Int16(baselinePeriod)
+        readinessScore.calculationTimestamp = Date()
         readinessScore.healthMetrics = healthMetrics
         
         saveContext()

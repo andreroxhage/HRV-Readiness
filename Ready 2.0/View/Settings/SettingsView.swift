@@ -2,6 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("readinessMode") private var readinessMode: String = "morning"
+    @AppStorage("baselinePeriod") private var baselinePeriod: Int = 7
+    @AppStorage("useRHRAdjustment") private var useRHRAdjustment: Bool = true
+    @AppStorage("useSleepAdjustment") private var useSleepAdjustment: Bool = true
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ReadinessViewModel
     @State private var showHealthKitAuth = false
@@ -43,6 +46,102 @@ struct SettingsView: View {
                     Text("Measurement Settings")
                 } footer: {
                     Text("Morning mode is recommended for most users as it provides more consistent measurements during sleep.")
+                }
+                
+                // Baseline Settings
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Baseline Period")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        
+                        Picker("Baseline Period", selection: $baselinePeriod) {
+                            Text("7 days").tag(7)
+                            Text("14 days").tag(14)
+                            Text("30 days").tag(30)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: baselinePeriod) { oldValue, newValue in
+                            viewModel.updateBaselinePeriod(newValue)
+                        }
+                    }
+                    
+                    // Baseline status
+                    HStack {
+                        Image(systemName: viewModel.hasBaselineData ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(viewModel.hasBaselineData ? .green : .orange)
+                        Text(viewModel.baselineDataStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 2)
+                } header: {
+                    Text("Baseline Calculation")
+                } footer: {
+                    Text("The baseline is calculated using your HRV data from the selected period. A longer period gives more consistent results but requires more data.")
+                }
+                
+                // Score Adjustment Settings
+                Section {
+                    Toggle("Resting Heart Rate Adjustment", isOn: $useRHRAdjustment)
+                        .onChange(of: useRHRAdjustment) { oldValue, newValue in
+                            viewModel.updateRHRAdjustment(newValue)
+                        }
+                    
+                    HStack {
+                        Text("Reduces your score when your RHR is elevated")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading)
+                    
+                    Toggle("Sleep Duration Adjustment", isOn: $useSleepAdjustment)
+                        .onChange(of: useSleepAdjustment) { oldValue, newValue in
+                            viewModel.updateSleepAdjustment(newValue)
+                        }
+                    
+                    HStack {
+                        Text("Reduces your score when sleep is under 6 hours")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading)
+                    
+                    Button(action: {
+                        viewModel.recalculateReadinessScore()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise.circle")
+                            Text("Recalculate Today's Score")
+                        }
+                    }
+                    .disabled(viewModel.isLoading)
+                    
+                    NavigationLink(destination: AdvancedSettingsView(viewModel: viewModel)) {
+                        HStack {
+                            Image(systemName: "gearshape.2")
+                                .foregroundStyle(.gray)
+                            Text("Advanced Settings")
+                            Spacer()
+                        }
+                    }
+                } header: {
+                    Text("Score Adjustments")
+                } footer: {
+                    Text("These factors can further adjust your readiness score based on other metrics. Disable them for a score based solely on HRV.")
+                }
+                
+                // Last calculation time
+                if let lastTime = viewModel.lastCalculationTime {
+                    Section {
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundStyle(.gray)
+                            Text(viewModel.formattedLastCalculationTime)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
                 
                 // Settings
@@ -146,6 +245,18 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showHealthKitAuth) {
             HealthKitAuthView()
+        }
+    }
+}
+
+// Helper method to convert baseline period int to appropriate type
+extension SettingsView {
+    func updateBaselinePeriod(_ value: Int) {
+        switch value {
+        case 7: viewModel.updateBaselinePeriod(.sevenDays)
+        case 14: viewModel.updateBaselinePeriod(.fourteenDays)
+        case 30: viewModel.updateBaselinePeriod(.thirtyDays)
+        default: viewModel.updateBaselinePeriod(.sevenDays)
         }
     }
 }

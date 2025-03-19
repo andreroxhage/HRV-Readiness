@@ -1,0 +1,297 @@
+import SwiftUI
+
+struct AdvancedSettingsView: View {
+    @ObservedObject var viewModel: ReadinessViewModel
+    @AppStorage("minimumDaysForBaseline") private var minimumDaysForBaseline: Int = 3
+    @State private var daysToRecalculate: Int = 7
+    @State private var isRecalculating: Bool = false
+    @State private var showingDatePicker: Bool = false
+    @State private var selectedDate: Date = Date()
+    @State private var showingErrorAlert: Bool = false
+    @State private var errorMessage: String = ""
+    @State private var errorRecoverySuggestion: String = ""
+    
+    var body: some View {
+        List {
+            Section {
+                Stepper(value: $minimumDaysForBaseline, in: 1...10) {
+                    HStack {
+                        Text("Minimum Days for Baseline")
+                        Spacer()
+                        Text("\(minimumDaysForBaseline) days")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .onChange(of: minimumDaysForBaseline) { oldValue, newValue in
+                    if oldValue != newValue {
+                        // Update UserDefaults - will be picked up by ReadinessService
+                        UserDefaults.standard.set(newValue, forKey: "minimumDaysForBaseline")
+                        
+                        // Trigger recalculation if needed
+                        if viewModel.hasBaselineData {
+                            viewModel.recalculateReadinessScore()
+                        }
+                    }
+                }
+            } header: {
+                Text("Baseline Calculation")
+            } footer: {
+                Text("The minimum number of days needed to establish a valid baseline. Lower values allow faster baseline creation but may result in less stable scores.")
+            }
+            
+            Section {
+                Picker("Days to Recalculate", selection: $daysToRecalculate) {
+                    Text("Last 7 days").tag(7)
+                    Text("Last 14 days").tag(14)
+                    Text("Last 30 days").tag(30)
+                }
+                .pickerStyle(.segmented)
+                
+                Button(action: {
+                    isRecalculating = true
+                    viewModel.recalculateAllPastScores(days: daysToRecalculate)
+                    // The viewModel will set isLoading=false when complete
+                }) {
+                    HStack {
+                        if viewModel.isLoading && isRecalculating {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .padding(.trailing, 5)
+                        } else {
+                            Image(systemName: "arrow.clockwise.circle")
+                        }
+                        Text("Recalculate Past \(daysToRecalculate) Days")
+                    }
+                }
+                .disabled(viewModel.isLoading)
+                .onChange(of: viewModel.isLoading) { _, newValue in
+                    if !newValue {
+                        isRecalculating = false
+                        
+                        // Check if there was an error
+                        if let error = viewModel.error {
+                            errorMessage = error.errorDescription ?? "An error occurred"
+                            errorRecoverySuggestion = error.recoverySuggestion ?? "Please try again."
+                            showingErrorAlert = true
+                        }
+                    }
+                }
+                
+                Button(action: {
+                    showingDatePicker = true
+                }) {
+                    HStack {
+                        Image(systemName: "calendar")
+                        Text("Recalculate Specific Date")
+                    }
+                }
+                .disabled(viewModel.isLoading)
+                
+                if let error = viewModel.error {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Last Recalculation Issue:")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(.red)
+                        
+                        Text(error.errorDescription ?? "An error occurred")
+                            .font(.subheadline)
+                        
+                        if let recovery = error.recoverySuggestion {
+                            Text(recovery)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 2)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            } header: {
+                Text("Data Recalculation")
+            } footer: {
+                Text("Recalculate past readiness scores based on health data. Useful if you've manually added data in the Health app after the fact.")
+            }
+            
+            Section {
+                NavigationLink(destination: DataDebugView(viewModel: viewModel)) {
+                    HStack {
+                        Image(systemName: "waveform.path.ecg")
+                            .foregroundStyle(.gray)
+                        Text("Debug Health Data")
+                        Spacer()
+                    }
+                }
+                
+                NavigationLink(destination: BaselineDetailView(viewModel: viewModel)) {
+                    HStack {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .foregroundStyle(.gray)
+                        Text("Baseline Details")
+                        Spacer()
+                    }
+                }
+            } header: {
+                Text("Advanced Data")
+            } footer: {
+                Text("View detailed information about your health data and baseline calculations.")
+            }
+        }
+        .navigationTitle("Advanced Settings")
+        .sheet(isPresented: $showingDatePicker) {
+            NavigationView {
+                VStack {
+                    DatePicker(
+                        "Select Date",
+                        selection: $selectedDate,
+                        in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .padding()
+                    
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.blue)
+                        Text("Recalculating will update this date's readiness score with the latest health data")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal)
+                    
+                    Button(action: {
+                        viewModel.recalculateReadinessForDate(selectedDate)
+                        showingDatePicker = false
+                    }) {
+                        Text("Recalculate Selected Date")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    .padding()
+                    .disabled(viewModel.isLoading)
+                }
+                .navigationTitle("Select Date")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Cancel") {
+                            showingDatePicker = false
+                        }
+                    }
+                }
+            }
+        }
+        .alert(isPresented: $showingErrorAlert) {
+            Alert(
+                title: Text("Recalculation Issue"),
+                message: Text("\(errorMessage)\n\n\(errorRecoverySuggestion)"),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+    }
+}
+
+// Placeholder views for diagnostics
+struct DataDebugView: View {
+    @ObservedObject var viewModel: ReadinessViewModel
+    
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Current HRV Baseline", value: String(format: "%.1f ms", viewModel.hrvBaseline))
+                LabeledContent("HRV Deviation", value: viewModel.formattedHRVDeviation)
+                    .foregroundStyle(viewModel.hrvDeviationColor)
+                LabeledContent("RHR Adjustment", value: String(format: "%.1f", viewModel.rhrAdjustment))
+                LabeledContent("Sleep Adjustment", value: String(format: "%.1f", viewModel.sleepAdjustment))
+                LabeledContent("Raw Score", value: String(format: "%.1f", viewModel.readinessScore))
+            } header: {
+                Text("Today's Calculation")
+            } footer: {
+                Text("Raw data used to calculate today's readiness score.")
+            }
+            
+            Section {
+                LabeledContent("RHR Adjustment Enabled", value: viewModel.useRHRAdjustment ? "Yes" : "No")
+                LabeledContent("Sleep Adjustment Enabled", value: viewModel.useSleepAdjustment ? "Yes" : "No")
+                LabeledContent("Baseline Period", value: viewModel.baselinePeriodDescription)
+                LabeledContent("Readiness Mode", value: viewModel.readinessModeDescription)
+            } header: {
+                Text("Settings")
+            }
+            
+            if let error = viewModel.error {
+                Section {
+                    Text(error.errorDescription ?? "Unknown error")
+                        .foregroundStyle(.red)
+                    
+                    if let recoverySuggestion = error.recoverySuggestion {
+                        Text(recoverySuggestion)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+                    }
+                } header: {
+                    Text("Current Error")
+                }
+            }
+            
+            Section {
+                Button("Clear All App Data") {
+                    // This should show a confirmation dialog before actually deleting
+                }
+                .foregroundStyle(.red)
+            } footer: {
+                Text("This will delete all stored scores and reset to default settings. Use with caution.")
+            }
+        }
+        .navigationTitle("Debug Data")
+    }
+}
+
+struct BaselineDetailView: View {
+    @ObservedObject var viewModel: ReadinessViewModel
+    
+    var body: some View {
+        List {
+            Section {
+                LabeledContent("Current Period", value: viewModel.baselinePeriodDescription)
+                LabeledContent("Minimum Days Required", value: "\(viewModel.readinessService.minimumDaysForBaseline)")
+                LabeledContent("Days Available", value: "\(viewModel.pastScores.count)")
+                LabeledContent("Baseline Status", value: viewModel.hasBaselineData ? "Established" : "Insufficient Data")
+                    .foregroundStyle(viewModel.hasBaselineData ? .green : .orange)
+            } header: {
+                Text("Baseline Configuration")
+            }
+            
+            if !viewModel.pastScores.isEmpty {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Historical HRV Values")
+                            .font(.headline)
+                        
+                        // Simple line chart would go here
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(height: 200)
+                            .overlay(
+                                Text("HRV Chart Placeholder")
+                                    .foregroundStyle(.secondary)
+                            )
+                    }
+                } header: {
+                    Text("Historical Data")
+                } footer: {
+                    Text("This chart shows your HRV values over time, which are used to calculate your baseline.")
+                }
+            }
+        }
+        .navigationTitle("Baseline Details")
+    }
+}
+
+#Preview {
+    NavigationView {
+        AdvancedSettingsView(viewModel: ReadinessViewModel())
+    }
+} 

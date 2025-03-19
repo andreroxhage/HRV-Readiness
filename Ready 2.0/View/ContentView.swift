@@ -37,12 +37,10 @@ class HealthDataProvider {
         return SleepData(hours: 7.5, quality: 85, startTime: Date().addingTimeInterval(-8 * 3600), endTime: Date())
     }
     
-    // Mock shared defaults
     var sharedDefaults: UserDefaults? {
         UserDefaults.standard
     }
     
-    // Mock storage keys
     struct StorageKeys {
         static let lastUpdateTime = "lastUpdateTime"
         static let lastHRV = "lastHRV"
@@ -113,10 +111,16 @@ struct ContentView: View {
                         }
                     }.onChange(of: readinessMode) { oldValue, newValue in
                         if oldValue != newValue {
-                            DispatchQueue.main.async {
+                            Task { @MainActor in
+                                // Wait a moment to ensure settings view has time to dismiss if needed
                                 viewModel.updateReadinessMode(newValue)
+                                
+                                // Slight delay before refreshing data to avoid race conditions
+                                try? await Task.sleep(for: .milliseconds(100))
+                                
+                                // Force recalculation with the new mode
+                                refreshData(forceRecalculation: true)
                             }
-                            refreshData(forceRecalculation: true)
                         }
                     }
 
@@ -242,11 +246,17 @@ struct ContentView: View {
                     "Readiness Update Failed",
                     isPresented: Binding(
                         get: { viewModel.error != nil },
-                        set: { if !$0 { viewModel.error = nil } }
+                        set: { if !$0 { 
+                            Task { @MainActor in
+                                viewModel.error = nil
+                            } 
+                        }}
                     )
                 ) {
                     Button("OK") {
-                        viewModel.error = nil
+                        Task { @MainActor in
+                            viewModel.error = nil
+                        }
                     }
                 } message: {
                     if let error = viewModel.error {
@@ -269,8 +279,10 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearanceViewModel.colorScheme)
         .onAppear {
-            previousMode = readinessMode
-            fetchHealthData()
+            Task { @MainActor in
+                previousMode = readinessMode
+                fetchHealthData()
+            }
         }
     }
     
@@ -279,16 +291,19 @@ struct ContentView: View {
     }
     
     private func fetchHealthData() {
-        isLoading = true
-        
-        Task {
+        Task { @MainActor in
+            isLoading = true
+            
             do {              
                 // Update timestamp
                 HealthDataProvider.shared.sharedDefaults?.set(Date(), forKey: HealthDataProvider.StorageKeys.lastUpdateTime)
                 
                 // Fetch HRV data - our primary focus now
                 do {
-                    hrv = try await HealthDataProvider.shared.fetchHRV()
+                    let fetchedHrv = try await HealthDataProvider.shared.fetchHRV()
+                    await MainActor.run {
+                        hrv = fetchedHrv
+                    }
                     HealthDataProvider.shared.sharedDefaults?.set(hrv, forKey: HealthDataProvider.StorageKeys.lastHRV)
                 } catch {
                     print("HRV data error: \(error)")
@@ -296,7 +311,10 @@ struct ContentView: View {
                 
                 // Fetch resting heart rate - our primary focus now
                 do {
-                    restingHeartRate = try await HealthDataProvider.shared.fetchRestingHeartRate()
+                    let fetchedRhr = try await HealthDataProvider.shared.fetchRestingHeartRate()
+                    await MainActor.run {
+                        restingHeartRate = fetchedRhr
+                    }
                     HealthDataProvider.shared.sharedDefaults?.set(restingHeartRate, forKey: HealthDataProvider.StorageKeys.lastRestingHeartRate)
                 } catch {
                     print("Resting heart rate error: \(error)")
@@ -305,10 +323,12 @@ struct ContentView: View {
                 // Fetch sleep data - our primary focus now
                 do {
                     let sleepData = try await HealthDataProvider.shared.fetchSleepData()
-                    sleepHours = sleepData.hours
-                    sleepQuality = sleepData.quality
-                    sleepStartTime = sleepData.startTime
-                    sleepEndTime = sleepData.endTime
+                    await MainActor.run {
+                        sleepHours = sleepData.hours
+                        sleepQuality = sleepData.quality
+                        sleepStartTime = sleepData.startTime
+                        sleepEndTime = sleepData.endTime
+                    }
                     
                     HealthDataProvider.shared.sharedDefaults?.set(sleepHours, forKey: HealthDataProvider.StorageKeys.lastSleepHours)
                     HealthDataProvider.shared.sharedDefaults?.set(sleepQuality, forKey: HealthDataProvider.StorageKeys.sleepQuality)
@@ -322,24 +342,25 @@ struct ContentView: View {
                 let modeChanged = previousMode != readinessMode
                 if modeChanged {
                     print("DEBUG: Mode changed from \(previousMode) to \(readinessMode)")
-                    previousMode = readinessMode
+                    await MainActor.run {
+                        previousMode = readinessMode
+                    }
                     
                     // Update the viewModel's readiness mode using string-based approach
-                    DispatchQueue.main.async {
+                    await MainActor.run {
                         // The viewModel will handle the conversion from string to enum internally
                         self.viewModel.updateReadinessMode(readinessMode)
                     }
                 }
-
-                // Calculate and save readiness score using the current mode
-                viewModel.calculateAndSaveReadinessScoreForCurrentMode(
-                    restingHeartRate: restingHeartRate,
-                    sleepHours: sleepHours,
-                    sleepQuality: sleepQuality,
-                    forceRecalculation: modeChanged
-                )
-
-                error = nil
+                
+                await MainActor.run {
+                    isLoading = false
+                }
+            } catch {
+                print("Health data error: \(error)")
+                await MainActor.run {
+                    isLoading = false
+                }
             }
         }
     }

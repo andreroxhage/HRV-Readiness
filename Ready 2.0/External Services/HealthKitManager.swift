@@ -261,6 +261,44 @@ extension HealthKitManager {
         }
     }
     
+    // Fetch resting heart rate for a specific time range
+    public func fetchRestingHeartRateForTimeRange(startTime: Date, endTime: Date) async throws -> Double {
+        let restingHRType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate)!
+        
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startTime,
+            end: endTime
+        )
+        
+        print("DEBUG: Fetching resting heart rate for time range: \(startTime) to \(endTime)")
+
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Double, Error>) in
+            let query = HKStatisticsQuery(
+                quantityType: restingHRType,
+                quantitySamplePredicate: predicate,
+                options: .discreteAverage
+            ) { _, result, error in
+                if let error = error {
+                    print("DEBUG: Error fetching resting heart rate: \(error)")
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                if let quantity = result?.averageQuantity() {
+                    let rhr = quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
+                    print("DEBUG: Found resting heart rate value: \(rhr) bpm")
+                    continuation.resume(returning: rhr)
+                } else {
+                    // No data available for this time range
+                    print("DEBUG: No resting heart rate data available for time range")
+                    continuation.resume(returning: 0)
+                }
+            }
+            
+            healthStore.execute(query)
+        }
+    }
+    
     // Sleep data structure
     struct SleepData {
         let hours: Double
@@ -332,6 +370,94 @@ extension HealthKitManager {
                 
                 // Calculate a simple sleep quality score (0-100)
                 // This is a simplified approach - in a real app you might use more factors
+                let sleepQuality: Int
+                if sleepHours >= 7 && sleepHours <= 9 {
+                    sleepQuality = 90 // Optimal sleep duration
+                } else if sleepHours >= 6 && sleepHours < 7 {
+                    sleepQuality = 70 // Slightly below optimal
+                } else if sleepHours > 9 && sleepHours <= 10 {
+                    sleepQuality = 80 // Slightly above optimal
+                } else if sleepHours < 6 {
+                    sleepQuality = Int(min(60, sleepHours * 10)) // Poor sleep
+                } else {
+                    sleepQuality = 65 // Too much sleep
+                }
+                
+                continuation.resume(returning: SleepData(
+                    hours: sleepHours,
+                    quality: sleepQuality,
+                    startTime: earliestStartTime,
+                    endTime: latestEndTime
+                ))
+            }
+            
+            healthStore.execute(query)
+        }
+    }
+    
+    // Fetch sleep data for a specific time range
+    public func fetchSleepDataForTimeRange(startTime: Date, endTime: Date) async throws -> SleepData {
+        let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
+        
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startTime,
+            end: endTime
+        )
+        
+        print("DEBUG: Fetching sleep data for time range: \(startTime) to \(endTime)")
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SleepData, Error>) in
+            let query = HKSampleQuery(
+                sampleType: sleepType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)]
+            ) { _, samples, error in
+                if let error = error {
+                    print("DEBUG: Error fetching sleep data: \(error)")
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                guard let samples = samples as? [HKCategorySample] else {
+                    print("DEBUG: No sleep samples found for time range")
+                    continuation.resume(returning: SleepData(hours: 0, quality: 0, startTime: nil, endTime: nil))
+                    return
+                }
+                
+                // Filter for asleep samples
+                let asleepSamples = samples.filter { sample in
+                    if #available(iOS 16.0, *) {
+                        return sample.value == HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue
+                    } else {
+                        return sample.value == HKCategoryValueSleepAnalysis.asleep.rawValue
+                    }
+                }
+                
+                print("DEBUG: Found \(asleepSamples.count) sleep samples for time range")
+                
+                // Calculate total sleep time
+                var totalSleepTime: TimeInterval = 0
+                var earliestStartTime: Date?
+                var latestEndTime: Date?
+                
+                for sample in asleepSamples {
+                    totalSleepTime += sample.endDate.timeIntervalSince(sample.startDate)
+                    
+                    if earliestStartTime == nil || sample.startDate < earliestStartTime! {
+                        earliestStartTime = sample.startDate
+                    }
+                    
+                    if latestEndTime == nil || sample.endDate > latestEndTime! {
+                        latestEndTime = sample.endDate
+                    }
+                }
+                
+                // Convert to hours
+                let sleepHours = totalSleepTime / 3600
+                print("DEBUG: Calculated sleep hours: \(sleepHours)")
+                
+                // Calculate sleep quality
                 let sleepQuality: Int
                 if sleepHours >= 7 && sleepHours <= 9 {
                     sleepQuality = 90 // Optimal sleep duration
@@ -533,17 +659,85 @@ extension HealthKitManager {
         }
     }
 
-    // Method to fetch HRV data for a specific time range
+    // MARK: - HRV Statistics Collection
+    
+    // Method to fetch HRV data for the past 7 days using HKStatisticsCollectionQuery
+    public func fetchHRVStatisticsForPastDays(days: Int = 7) async throws -> [(date: Date, value: Double)] {
+        let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        
+        // Configure the calendar and anchor date
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -days, to: endDate)!
+        
+        // Use the start of the day as the anchor
+        let anchorDate = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: startDate)!
+        
+        // Define the date interval components - collect daily statistics
+        let interval = DateComponents(day: 1)
+        
+        // Create the predicate
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startDate,
+            end: endDate
+        )
+        
+        // Create and execute the query
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[(date: Date, value: Double)], Error>) in
+            // Create the query
+            let query = HKStatisticsCollectionQuery(
+                quantityType: hrvType,
+                quantitySamplePredicate: predicate,
+                options: .discreteAverage,
+                anchorDate: anchorDate,
+                intervalComponents: interval
+            )
+            
+            // Set the results handler
+            query.initialResultsHandler = { query, statisticsCollection, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                guard let statisticsCollection = statisticsCollection else {
+                    continuation.resume(returning: [])
+                    return
+                }
+                
+                var results: [(date: Date, value: Double)] = []
+                
+                // Process the daily statistics
+                statisticsCollection.enumerateStatistics(from: startDate, to: endDate) { statistics, stop in
+                    if let quantity = statistics.averageQuantity() {
+                        let value = quantity.doubleValue(for: HKUnit.secondUnit(with: .milli))
+                        results.append((date: statistics.startDate, value: value))
+                    }
+                }
+                
+                // Sort by date
+                results.sort { $0.date < $1.date }
+                
+                continuation.resume(returning: results)
+            }
+            
+            // Execute the query
+            healthStore.execute(query)
+        }
+    }
+    
+    // Fetch HRV for a specific time range
     public func fetchHRVForTimeRange(startTime: Date, endTime: Date) async throws -> Double {
         let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
         
+        // Create the predicate for the specific time range
         let predicate = HKQuery.predicateForSamples(
             withStart: startTime,
             end: endTime
         )
         
         print("DEBUG: Fetching HRV for time range: \(startTime) to \(endTime)")
-
+        
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Double, Error>) in
             let query = HKStatisticsQuery(
                 quantityType: hrvType,
@@ -562,9 +756,53 @@ extension HealthKitManager {
                     continuation.resume(returning: hrv)
                 } else {
                     // No data available for this time range
-                    print("DEBUG: No HRV data available for time range: \(startTime) to \(endTime)")
+                    print("DEBUG: No HRV data available for time range")
                     continuation.resume(returning: 0)
                 }
+            }
+            
+            healthStore.execute(query)
+        }
+    }
+    
+    // MARK: - HRV Inspection
+    
+    // Get the most recent HRV reading
+    public func getMostRecentHRVSample() async throws -> (date: Date, value: Double) {
+        let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN)!
+        
+        let calendar = Calendar.current
+        let endDate = Date()
+        let startDate = calendar.date(byAdding: .day, value: -7, to: endDate)!
+        
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startDate,
+            end: endDate
+        )
+        
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(date: Date, value: Double), Error>) in
+            let query = HKSampleQuery(
+                sampleType: hrvType,
+                predicate: predicate,
+                limit: 1,
+                sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                guard let sample = samples?.first as? HKQuantitySample else {
+                    continuation.resume(throwing: NSError(
+                        domain: "com.andreroxhage.Ready-2-0",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "No HRV sample found"]
+                    ))
+                    return
+                }
+                
+                let value = sample.quantity.doubleValue(for: HKUnit.secondUnit(with: .milli))
+                continuation.resume(returning: (date: sample.endDate, value: value))
             }
             
             healthStore.execute(query)

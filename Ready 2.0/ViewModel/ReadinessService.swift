@@ -2,6 +2,7 @@ import Foundation
 import CoreData
 
 enum ReadinessCategory: String, CaseIterable {
+    case unknown = "Unknown"
     case optimal = "Optimal"
     case moderate = "Moderate"
     case low = "Low"
@@ -9,6 +10,7 @@ enum ReadinessCategory: String, CaseIterable {
     
     var range: ClosedRange<Double> {
         switch self {
+        case .unknown: return 0...0
         case .optimal: return 80...100
         case .moderate: return 50...79
         case .low: return 30...49
@@ -18,6 +20,7 @@ enum ReadinessCategory: String, CaseIterable {
     
     var emoji: String {
         switch self {
+        case .unknown: return "❓"
         case .optimal: return "✅"
         case .moderate: return "🟡"
         case .low: return "🔴"
@@ -27,6 +30,7 @@ enum ReadinessCategory: String, CaseIterable {
     
     var description: String {
         switch self {
+        case .unknown: return "Not enough data to determine readiness"
         case .optimal: return "Your body is well-recovered and ready for high-intensity training."
         case .moderate: return "Your body is moderately recovered. Consider moderate-intensity training."
         case .low: return "Your body shows signs of fatigue. Consider light activity or active recovery."
@@ -40,6 +44,20 @@ enum ReadinessMode: String {
     case rolling = "rolling"
 }
 
+enum BaselinePeriod: Int, CaseIterable {
+    case sevenDays = 7
+    case fourteenDays = 14
+    case thirtyDays = 30
+    
+    var description: String {
+        switch self {
+        case .sevenDays: return "7 days"
+        case .fourteenDays: return "14 days"
+        case .thirtyDays: return "30 days"
+        }
+    }
+}
+
 class ReadinessService {
     static let shared = ReadinessService()
     
@@ -49,9 +67,15 @@ class ReadinessService {
     // UserDefaults for settings
     private let userDefaults = UserDefaults.standard
     
+    // Default settings
+    private let defaultBaselinePeriod: BaselinePeriod = .sevenDays
+    private let defaultMinimumDaysForBaseline = 3
+    
     init() {
         // Default initializer, now accessible for testing
     }
+    
+    // MARK: - Settings
     
     // Get the current readiness mode from UserDefaults
     var readinessMode: ReadinessMode {
@@ -59,110 +83,116 @@ class ReadinessService {
         return ReadinessMode(rawValue: modeString) ?? .morning
     }
     
-    // Calculate the 7-day rolling HRV baseline
+    // Get the baseline period from UserDefaults
+    var baselinePeriod: BaselinePeriod {
+        let days = userDefaults.integer(forKey: "baselinePeriod")
+        return BaselinePeriod(rawValue: days) ?? defaultBaselinePeriod
+    }
+    
+    // Get the minimum days required for baseline calculation
+    var minimumDaysForBaseline: Int {
+        return userDefaults.integer(forKey: "minimumDaysForBaseline") != 0 ?
+            userDefaults.integer(forKey: "minimumDaysForBaseline") : defaultMinimumDaysForBaseline
+    }
+    
+    // Whether to use RHR adjustment
+    var useRHRAdjustment: Bool {
+        return userDefaults.bool(forKey: "useRHRAdjustment")
+    }
+    
+    // Whether to use sleep adjustment
+    var useSleepAdjustment: Bool {
+        return userDefaults.bool(forKey: "useSleepAdjustment")
+    }
+    
+    // MARK: - Baseline Calculation
+    
+    // Calculate the HRV baseline for the selected period
     func calculateHRVBaseline() -> Double {
-        let healthMetrics = coreDataManager.getHealthMetricsForPastDays(7)
+        let days = baselinePeriod.rawValue
+        let healthMetrics = coreDataManager.getHealthMetricsForPastDays(days)
         
-        print("DEBUG: Found \(healthMetrics.count) health metrics for HRV baseline calculation")
+        print("DEBUG: Found \(healthMetrics.count) health metrics for HRV baseline calculation (period: \(days) days)")
         
         // If we don't have enough data, return 0
-        if healthMetrics.count < 3 {
-            print("DEBUG: Not enough data points for HRV baseline (need at least 3, found \(healthMetrics.count))")
-            
-            // Print what we have for debugging
-            if !healthMetrics.isEmpty {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .short
-                formatter.timeStyle = .short
-                
-                print("DEBUG: Available HRV data points:")
-                for (index, metric) in healthMetrics.enumerated() {
-                    if let date = metric.date {
-                        print("DEBUG: Data point \(index+1): Date=\(formatter.string(from: date)), HRV=\(metric.hrv)")
-                    }
-                }
-                
-                print("DEBUG: Please add more data points to calculate a baseline")
-            } else {
-                print("DEBUG: No HRV data points available. Please add at least 3 data points.")
-            }
-            
+        if healthMetrics.count < minimumDaysForBaseline {
+            print("DEBUG: Not enough data points for HRV baseline (need at least \(minimumDaysForBaseline), found \(healthMetrics.count))")
             return 0
         }
         
-        // Calculate the average HRV from the past 7 days
-        let hrvValues = healthMetrics.map { $0.hrv }
+        // Remove any potentially bad data (very low HRV values that might be errors)
+        let validHRVValues = healthMetrics.map { $0.hrv }.filter { $0 >= 10 }
         
-        // Check for zero or very low values that might indicate bad data
-        let zeroOrLowValues = hrvValues.filter { $0 < 10 }
-        if !zeroOrLowValues.isEmpty {
-            print("DEBUG: WARNING - Found \(zeroOrLowValues.count) suspiciously low HRV values (< 10ms): \(zeroOrLowValues)")
+        if validHRVValues.count < minimumDaysForBaseline {
+            print("DEBUG: Not enough valid HRV values after filtering (need \(minimumDaysForBaseline), found \(validHRVValues.count))")
+            return 0
         }
         
-        print("DEBUG: HRV values for baseline: \(hrvValues)")
+        print("DEBUG: Valid HRV values for baseline: \(validHRVValues)")
         
-        let sum = hrvValues.reduce(0, +)
-        let average = sum / Double(hrvValues.count)
+        let sum = validHRVValues.reduce(0, +)
+        let average = sum / Double(validHRVValues.count)
         print("DEBUG: Calculated HRV baseline: \(average)")
         
+        // Save the baseline calculation timestamp
+        userDefaults.set(Date(), forKey: "lastHRVBaselineCalculation")
+        
         return average
     }
     
-    // Calculate the 7-day rolling RHR baseline
+    // Calculate the RHR baseline for the selected period
     func calculateRHRBaseline() -> Double {
-        let healthMetrics = coreDataManager.getHealthMetricsForPastDays(7)
+        let days = baselinePeriod.rawValue
+        let healthMetrics = coreDataManager.getHealthMetricsForPastDays(days)
         
-        print("DEBUG: Found \(healthMetrics.count) health metrics for RHR baseline calculation")
+        print("DEBUG: Found \(healthMetrics.count) health metrics for RHR baseline calculation (period: \(days) days)")
         
         // If we don't have enough data, return 0
-        if healthMetrics.count < 3 {
-            print("DEBUG: Not enough data points for RHR baseline (need at least 3, found \(healthMetrics.count))")
-            
-            // Print what we have for debugging
-            if !healthMetrics.isEmpty {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .short
-                formatter.timeStyle = .short
-                
-                print("DEBUG: Available RHR data points:")
-                for (index, metric) in healthMetrics.enumerated() {
-                    if let date = metric.date {
-                        print("DEBUG: Data point \(index+1): Date=\(formatter.string(from: date)), RHR=\(metric.restingHeartRate)")
-                    }
-                }
-                
-                print("DEBUG: Please add more data points to calculate a baseline")
-            } else {
-                print("DEBUG: No RHR data points available. Please add at least 3 data points.")
-            }
-            
+        if healthMetrics.count < minimumDaysForBaseline {
+            print("DEBUG: Not enough data points for RHR baseline (need at least \(minimumDaysForBaseline), found \(healthMetrics.count))")
             return 0
         }
         
-        // Calculate the average RHR from the past 7 days
-        let rhrValues = healthMetrics.map { $0.restingHeartRate }
+        // Filter out invalid RHR values (zero, negative, or extreme values)
+        let validRHRValues = healthMetrics.map { $0.restingHeartRate }.filter { $0 > 30 && $0 < 120 }
         
-        // Check for zero or very high/low values that might indicate bad data
-        let zeroValues = rhrValues.filter { $0 <= 0 }
-        if !zeroValues.isEmpty {
-            print("DEBUG: WARNING - Found \(zeroValues.count) zero or negative RHR values: \(zeroValues)")
+        if validRHRValues.count < minimumDaysForBaseline {
+            print("DEBUG: Not enough valid RHR values after filtering (need \(minimumDaysForBaseline), found \(validRHRValues.count))")
+            return 0
         }
         
-        let extremeValues = rhrValues.filter { $0 < 30 || $0 > 120 }
-        if !extremeValues.isEmpty {
-            print("DEBUG: WARNING - Found \(extremeValues.count) extreme RHR values (< 30 or > 120 bpm): \(extremeValues)")
-        }
+        print("DEBUG: Valid RHR values for baseline: \(validRHRValues)")
         
-        print("DEBUG: RHR values for baseline: \(rhrValues)")
-        
-        let sum = rhrValues.reduce(0, +)
-        let average = sum / Double(rhrValues.count)
+        let sum = validRHRValues.reduce(0, +)
+        let average = sum / Double(validRHRValues.count)
         print("DEBUG: Calculated RHR baseline: \(average)")
+        
+        // Save the baseline calculation timestamp
+        userDefaults.set(Date(), forKey: "lastRHRBaselineCalculation")
         
         return average
     }
     
-    // Fetch morning HRV data (00:00-10:00)
+    // Calculate average resting heart rate from recent data
+    private func calculateAverageRestingHeartRate() -> Double {
+        // Get recent health metrics
+        let recentMetrics = coreDataManager.getHealthMetricsForPastDays(baselinePeriod.rawValue)
+        
+        // Filter out zero values and calculate average
+        let validRHRValues = recentMetrics.compactMap { $0.restingHeartRate > 0 ? $0.restingHeartRate : nil }
+        
+        if validRHRValues.isEmpty {
+            return 0 // No valid data
+        }
+        
+        let average = validRHRValues.reduce(0, +) / Double(validRHRValues.count)
+        print("DEBUG: Average RHR from \(validRHRValues.count) days: \(average) bpm")
+        return average
+    }
+    
+    // MARK: - Data Fetching
+    
+    // Fetch morning HRV data (00:00-10:00) with timezone handling
     func fetchMorningHRV() async throws -> Double {
         let calendar = Calendar.current
         let now = Date()
@@ -204,100 +234,170 @@ class ReadinessService {
         return try await healthKitManager.fetchHRVForTimeRange(startTime: sixHoursAgo, endTime: now)
     }
     
-    // Calculate readiness score based on HRV, RHR, and sleep
+    // MARK: - Score Calculation
+    
+    // Calculate readiness score based on available metrics
     func calculateReadinessScore(hrv: Double, restingHeartRate: Double, sleepHours: Double) -> (score: Double, category: ReadinessCategory, hrvBaseline: Double, hrvDeviation: Double, rhrAdjustment: Double, sleepAdjustment: Double) {
-        print("DEBUG: Calculating readiness score with HRV=\(hrv), RHR=\(restingHeartRate), Sleep=\(sleepHours)h")
-        
-        // Calculate HRV baseline
+        // Calculate HRV baseline for the selected time period
         let hrvBaseline = calculateHRVBaseline()
         
-        // If we don't have enough data for a baseline, return a moderate score
-        if hrvBaseline == 0 {
-            print("DEBUG: No HRV baseline available, returning default moderate score")
-            return (score: 65, category: .moderate, hrvBaseline: 0, hrvDeviation: 0, rhrAdjustment: 0, sleepAdjustment: 0)
-        }
+        print("DEBUG: Calculating readiness with HRV=\(hrv), RHR=\(restingHeartRate), Sleep=\(sleepHours), Baseline=\(hrvBaseline)")
         
-        // Calculate HRV deviation from baseline
-        let hrvDeviation = (hrv - hrvBaseline) / hrvBaseline * 100
-        print("DEBUG: HRV deviation from baseline: \(hrvDeviation)%")
+        // Get user defaults for adjustments
+        let useRHRAdjustment = UserDefaults.standard.bool(forKey: "useRHRAdjustment")
+        let useSleepAdjustment = UserDefaults.standard.bool(forKey: "useSleepAdjustment")
         
-        // Determine base score based on HRV deviation
+        // Calculate HRV deviation percentage
+        let hrvDeviation = hrvBaseline > 0 ? ((hrv - hrvBaseline) / hrvBaseline) * 100 : 0
+        
+        // Convert HRV deviation to a 0-100 score
         var baseScore: Double
         
-        if abs(hrvDeviation) <= 3 {
-            // ±3% of baseline → Optimal (Score: 80–100)
-            baseScore = 90 // Middle of the optimal range
-            print("DEBUG: HRV deviation within ±3%, setting optimal base score: \(baseScore)")
-        } else if hrvDeviation < -3 && hrvDeviation >= -7 {
-            // 3–7% lower → Moderate (Score: 50–79)
-            baseScore = 65 // Middle of the moderate range
-            print("DEBUG: HRV deviation between -3% and -7%, setting moderate base score: \(baseScore)")
-        } else if hrvDeviation < -7 && hrvDeviation >= -10 {
-            // 7–10% lower → Low (Score: 30–49)
-            baseScore = 40 // Middle of the low range
-            print("DEBUG: HRV deviation between -7% and -10%, setting low base score: \(baseScore)")
-        } else if hrvDeviation < -10 {
-            // >10% lower → Fatigue (Score: 0–29)
-            baseScore = 15 // Middle of the fatigue range
-            print("DEBUG: HRV deviation below -10%, setting fatigue base score: \(baseScore)")
+        if hrvBaseline <= 0 {
+            // No baseline available - use absolute HRV value as a fallback
+            print("DEBUG: No baseline available, using absolute HRV")
+            baseScore = min(100, max(0, hrv * 1.5)) // Simple linear scaling as a fallback
         } else {
-            // HRV is higher than baseline by more than 3%
-            // This could indicate good recovery or potential overcompensation
-            // We'll treat it as optimal but with a slightly lower score
-            baseScore = 85
-            print("DEBUG: HRV deviation above +3%, setting slightly reduced optimal base score: \(baseScore)")
+            // Calculate score based on deviation from baseline
+            switch hrvDeviation {
+            case ...(-15):
+                baseScore = 30 // Very poor
+            case -15...(-10):
+                baseScore = 45 // Poor
+            case -10...(-5):
+                baseScore = 60 // Below average
+            case -5...5:
+                baseScore = 70 // Average
+            case 5...10:
+                baseScore = 85 // Good
+            case 10...:
+                baseScore = 95 // Excellent
+            default:
+                baseScore = 70 // Fallback
+            }
         }
         
-        // Adjust score based on RHR
-        let rhrBaseline = calculateRHRBaseline()
-        var rhrAdjustment = 0.0
+        // Calculate adjustments based on other metrics
+        var rhrAdjustment: Double = 0
+        var sleepAdjustment: Double = 0
         
-        if rhrBaseline > 0 && restingHeartRate > (rhrBaseline + 5) {
-            // If RHR is elevated (>5 bpm above baseline), reduce score by 10%
-            rhrAdjustment = -0.1 * baseScore
-            print("DEBUG: RHR elevated by \(restingHeartRate - rhrBaseline) bpm, applying adjustment: \(rhrAdjustment)")
-        } else {
-            print("DEBUG: No RHR adjustment needed")
+        // Only apply RHR adjustment if we have valid data and it's enabled
+        if restingHeartRate > 0 && useRHRAdjustment {
+            // Get historical resting heart rate data for comparison
+            let recentRHR = calculateAverageRestingHeartRate()
+            
+            if recentRHR > 0 {
+                // Calculate the deviation from recent average
+                let rhrDeviation = ((restingHeartRate - recentRHR) / recentRHR) * 100
+                
+                // Apply adjustment based on the deviation
+                switch rhrDeviation {
+                case ...(-10):
+                    rhrAdjustment = 5 // RHR is significantly lower - positive adjustment
+                case -10...(-5):
+                    rhrAdjustment = 3 // RHR is lower - small positive adjustment
+                case -5...5:
+                    rhrAdjustment = 0 // RHR is normal - no adjustment
+                case 5...10:
+                    rhrAdjustment = -3 // RHR is higher - small negative adjustment
+                case 10...:
+                    rhrAdjustment = -10 // RHR is significantly higher - large negative adjustment
+                default:
+                    rhrAdjustment = 0
+                }
+            }
         }
         
-        // Adjust score based on sleep
-        var sleepAdjustment = 0.0
-        
-        if sleepHours < 6 {
-            // If sleep is poor (<6 hours), reduce score by 15%
-            sleepAdjustment = -0.15 * baseScore
-            print("DEBUG: Sleep below 6 hours, applying adjustment: \(sleepAdjustment)")
-        } else {
-            print("DEBUG: No sleep adjustment needed")
+        // Only apply sleep adjustment if we have valid data and it's enabled
+        if sleepHours > 0 && useSleepAdjustment {
+            // Apply adjustment based on sleep hours
+            switch sleepHours {
+            case 0...4:
+                sleepAdjustment = -15 // Very poor sleep
+            case 4...6:
+                sleepAdjustment = -5 // Below optimal sleep
+            case 6...7:
+                sleepAdjustment = 0 // Acceptable sleep
+            case 7...9:
+                sleepAdjustment = 5 // Optimal sleep
+            case 9...:
+                sleepAdjustment = 0 // Too much sleep - no bonus
+            default:
+                sleepAdjustment = 0
+            }
         }
         
-        // Calculate final score
-        let finalScore = baseScore + rhrAdjustment + sleepAdjustment
-        print("DEBUG: Final score calculation: \(baseScore) + \(rhrAdjustment) + \(sleepAdjustment) = \(finalScore)")
+        // Calculate final score with adjustments
+        var finalScore = baseScore + rhrAdjustment + sleepAdjustment
         
-        // Ensure score is within valid range (0-100)
-        let clampedScore = max(0, min(100, finalScore))
+        // Clamp to 0-100 range
+        finalScore = min(100, max(0, finalScore))
         
-        // Determine final category based on the clamped score
-        let finalCategory = ReadinessCategory.allCases.first { $0.range.contains(clampedScore) } ?? .moderate
-        print("DEBUG: Final readiness category: \(finalCategory.rawValue)")
+        // Determine readiness category
+        let category: ReadinessCategory
+        switch finalScore {
+        case 0...40:
+            category = .low
+        case 40...70:
+            category = .moderate
+        case 70...100:
+            category = .optimal
+        default:
+            category = .moderate
+        }
         
-        return (score: clampedScore, category: finalCategory, hrvBaseline: hrvBaseline, hrvDeviation: hrvDeviation, rhrAdjustment: rhrAdjustment, sleepAdjustment: sleepAdjustment)
+        print("DEBUG: Final score: \(finalScore), Category: \(category.rawValue)")
+        print("DEBUG: Base score: \(baseScore), RHR adjustment: \(rhrAdjustment), Sleep adjustment: \(sleepAdjustment)")
+        
+        return (finalScore, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment)
     }
     
     // Calculate readiness score based on the selected mode
     func calculateReadinessScoreForCurrentMode(restingHeartRate: Double, sleepHours: Double) async throws -> (score: Double, category: ReadinessCategory, hrvBaseline: Double, hrvDeviation: Double, rhrAdjustment: Double, sleepAdjustment: Double) {
         let hrv: Double
+        let timeRangeDescription: String
         
-        switch readinessMode {
-        case .morning:
-            hrv = try await fetchMorningHRV()
-        case .rolling:
-            hrv = try await fetchRollingHRV()
+        do {
+            switch readinessMode {
+            case .morning:
+                timeRangeDescription = "morning (00:00-10:00)"
+                hrv = try await fetchMorningHRV()
+            case .rolling:
+                timeRangeDescription = "rolling (last 6 hours)"
+                hrv = try await fetchRollingHRV()
+            }
+            
+            if hrv <= 0 {
+                throw ReadinessError.dataProcessingFailed(
+                    component: "HRV", 
+                    reason: "No HRV data available for \(timeRangeDescription) time range"
+                )
+            }
+            
+            // Calculate HRV baseline
+            let hrvBaseline = calculateHRVBaseline()
+            
+            // If we don't have enough data for a baseline, throw specific error
+            if hrvBaseline == 0 {
+                let availableMetrics = coreDataManager.getHealthMetricsForPastDays(baselinePeriod.rawValue)
+                throw ReadinessError.hrvBaselineNotAvailable(
+                    daysAvailable: availableMetrics.count, 
+                    daysNeeded: minimumDaysForBaseline
+                )
+            }
+            
+            return calculateReadinessScore(hrv: hrv, restingHeartRate: restingHeartRate, sleepHours: sleepHours)
+        } catch let error as ReadinessError {
+            throw error
+        } catch {
+            throw ReadinessError.dataProcessingFailed(
+                component: "readiness data", 
+                reason: error.localizedDescription
+            )
         }
-        
-        return calculateReadinessScore(hrv: hrv, restingHeartRate: restingHeartRate, sleepHours: sleepHours)
     }
+    
+    // MARK: - Data Storage
     
     // Save today's health metrics and calculate readiness score
     func processAndSaveTodaysData(hrv: Double, restingHeartRate: Double, sleepHours: Double, sleepQuality: Int) -> ReadinessScore? {
@@ -335,23 +435,12 @@ class ReadinessService {
         sharedDefaults?.set(score, forKey: "readinessScore")
         sharedDefaults?.set(category.rawValue, forKey: "readinessCategory")
         sharedDefaults?.set(readinessMode.rawValue, forKey: "readinessMode")
+        sharedDefaults?.set(baselinePeriod.rawValue, forKey: "baselinePeriod")
+        sharedDefaults?.set(Date(), forKey: "lastCalculationTime")
         
         // Check if we already have data for today
         if let existingMetrics = coreDataManager.getHealthMetricsForDate(today) {
             print("DEBUG: Found existing health metrics for today, updating")
-            
-            // Log changes to help with debugging
-            if existingMetrics.hrv != hrv {
-                print("DEBUG: Updating HRV from \(existingMetrics.hrv) to \(hrv)")
-            }
-            
-            if existingMetrics.restingHeartRate != restingHeartRate {
-                print("DEBUG: Updating RHR from \(existingMetrics.restingHeartRate) to \(restingHeartRate)")
-            }
-            
-            if existingMetrics.sleepHours != sleepHours {
-                print("DEBUG: Updating Sleep Hours from \(existingMetrics.sleepHours) to \(sleepHours)")
-            }
             
             // Update existing metrics
             existingMetrics.hrv = hrv
@@ -364,19 +453,6 @@ class ReadinessService {
             // Check if we already have a readiness score for today
             if let existingScore = coreDataManager.getReadinessScoreForDate(today) {
                 print("DEBUG: Found existing readiness score for today, updating")
-                
-                // Log changes to help with debugging
-                if existingScore.score != score {
-                    print("DEBUG: Updating score from \(existingScore.score) to \(score)")
-                }
-                
-                if existingScore.readinessCategory != category.rawValue {
-                    print("DEBUG: Updating category from \(existingScore.readinessCategory ?? "unknown") to \(category.rawValue)")
-                }
-                
-                if existingScore.readinessMode != readinessMode.rawValue {
-                    print("DEBUG: Updating mode from \(existingScore.readinessMode ?? "unknown") to \(readinessMode.rawValue)")
-                }
                 
                 // Update existing score
                 existingScore.score = score
@@ -401,6 +477,7 @@ class ReadinessService {
                     rhrAdjustment: rhrAdjustment,
                     sleepAdjustment: sleepAdjustment,
                     readinessMode: readinessMode.rawValue,
+                    baselinePeriod: baselinePeriod.rawValue,
                     healthMetrics: existingMetrics
                 )
             }
@@ -426,6 +503,7 @@ class ReadinessService {
                 rhrAdjustment: rhrAdjustment,
                 sleepAdjustment: sleepAdjustment,
                 readinessMode: readinessMode.rawValue,
+                baselinePeriod: baselinePeriod.rawValue,
                 healthMetrics: healthMetrics
             )
         }
@@ -437,23 +515,9 @@ class ReadinessService {
         
         print("DEBUG: Processing readiness data for mode: \(readinessMode)")
         print("DEBUG: Force recalculation: \(forceRecalculation)")
+        print("DEBUG: Baseline period: \(baselinePeriod.rawValue) days")
         
-        // Check for missing or invalid data
-        var missingData: [String] = []
-        
-        if restingHeartRate <= 0 {
-            missingData.append("Resting Heart Rate")
-        }
-        
-        if sleepHours <= 0 {
-            missingData.append("Sleep Hours")
-        }
-        
-        if !missingData.isEmpty {
-            print("DEBUG: WARNING - Missing or invalid data: \(missingData.joined(separator: ", "))")
-        }
-        
-        // If we're forcing a recalculation due to mode change, we need to fetch new HRV data
+        // Fetch HRV data based on current mode
         switch readinessMode {
         case .morning:
             print("DEBUG: Using morning HRV calculation")
@@ -464,10 +528,25 @@ class ReadinessService {
         }
         
         if hrv <= 0 {
-            print("DEBUG: WARNING - No HRV data available for the selected time range")
+            throw ReadinessError.dataProcessingFailed(
+                component: "HRV",
+                reason: "No HRV data available for the selected time range"
+            )
         }
         
         print("DEBUG: HRV value for readiness calculation: \(hrv)")
+        
+        // Validate baseline data
+        let hrvBaseline = calculateHRVBaseline()
+        if hrvBaseline == 0 {
+            let availableMetrics = coreDataManager.getHealthMetricsForPastDays(baselinePeriod.rawValue)
+            throw ReadinessError.hrvBaselineNotAvailable(
+                daysAvailable: availableMetrics.count,
+                daysNeeded: minimumDaysForBaseline
+            )
+        }
+        
+        let today = Date()
         
         // Always recalculate when mode changes or when forced
         if forceRecalculation {
@@ -476,8 +555,6 @@ class ReadinessService {
             // Calculate a new score
             let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = 
                 calculateReadinessScore(hrv: hrv, restingHeartRate: restingHeartRate, sleepHours: sleepHours)
-            
-            let today = Date()
             
             // Save to UserDefaults for widget access
             let sharedDefaults = UserDefaults(suiteName: "group.andreroxhage.Ready-2-0")
@@ -521,16 +598,17 @@ class ReadinessService {
                     rhrAdjustment: rhrAdjustment,
                     sleepAdjustment: sleepAdjustment,
                     readinessMode: readinessMode.rawValue,
+                    baselinePeriod: baselinePeriod.rawValue,
                     healthMetrics: healthMetrics
                 )
             }
         } else {
             // Check if we already have a readiness score for today with the current mode
-            let today = Date()
             if let existingScore = coreDataManager.getReadinessScoreForDate(today) {
                 // If the mode is different, force a recalculation
-                if existingScore.readinessMode != readinessMode.rawValue {
-                    print("DEBUG: Existing score has different mode (\(existingScore.readinessMode ?? "unknown")), forcing recalculation for current mode (\(readinessMode.rawValue))")
+                if existingScore.readinessMode != readinessMode.rawValue || 
+                   Int(existingScore.baselinePeriod) != baselinePeriod.rawValue {
+                    print("DEBUG: Existing score has different settings, forcing recalculation")
                     
                     // Calculate a new score
                     let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = 
@@ -554,7 +632,8 @@ class ReadinessService {
                     coreDataManager.saveContext()
                     return existingScore
                 } else {
-                    print("DEBUG: Using existing score with matching mode: \(readinessMode.rawValue)")
+                    print("DEBUG: Using existing score with matching settings")
+                    return existingScore
                 }
             }
             
@@ -568,13 +647,386 @@ class ReadinessService {
         }
     }
     
+    // MARK: - Data Access
+    
     // Get readiness score for today
     func getTodaysReadinessScore() -> ReadinessScore? {
         return coreDataManager.getReadinessScoreForDate(Date())
     }
     
+    // Get readiness score for a specific date
+    func getReadinessScoreForDate(_ date: Date) -> ReadinessScore? {
+        return coreDataManager.getReadinessScoreForDate(date)
+    }
+    
     // Get readiness scores for the past N days
     func getReadinessScoresForPastDays(_ days: Int) -> [ReadinessScore] {
         return coreDataManager.getReadinessScoresForPastDays(days)
+    }
+    
+    // Recalculate readiness for today with current settings
+    func recalculateTodaysReadiness() async throws -> ReadinessScore? {
+        // Fetch the latest health data
+        let restingHeartRate = try await healthKitManager.fetchRestingHeartRate()
+        let sleepData = try await healthKitManager.fetchSleepData()
+        
+        // Force recalculation
+        return try await processAndSaveTodaysDataForCurrentMode(
+            restingHeartRate: restingHeartRate,
+            sleepHours: sleepData.hours,
+            sleepQuality: sleepData.quality,
+            forceRecalculation: true
+        )
+    }
+    
+    // Recalculate readiness for a specific date
+    func recalculateReadinessForDate(_ date: Date) async throws -> ReadinessScore? {
+        print("DEBUG: Recalculating readiness for date: \(date)")
+        
+        // Use calendar for date calculations
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        // Fetch health data for the specific date
+        var hrv: Double = 0
+        var restingHeartRate: Double = 0
+        var sleepData: HealthKitManager.SleepData = HealthKitManager.SleepData(hours: 0, quality: 0, startTime: nil, endTime: nil)
+        var missingDataDetails: [String] = []
+        var criticalMissingData: [String] = []
+        
+        // Get user preferences for calculations
+        let useRHRInCalculation = useRHRAdjustment
+        let useSleepInCalculation = useSleepAdjustment
+        
+        // Try to get HRV data - this is essential regardless of settings
+        do {
+            hrv = try await fetchHRVForDate(date)
+            if hrv <= 0 {
+                missingDataDetails.append("HRV")
+                criticalMissingData.append("HRV") // HRV is always critical
+            }
+        } catch {
+            print("DEBUG: Error fetching HRV: \(error.localizedDescription)")
+            missingDataDetails.append("HRV (error)")
+            criticalMissingData.append("HRV")
+        }
+        
+        // Try to get resting heart rate - but only mark as critical if RHR adjustments are enabled
+        do {
+            restingHeartRate = try await healthKitManager.fetchRestingHeartRateForTimeRange(
+                startTime: startOfDay,
+                endTime: endOfDay
+            )
+            if restingHeartRate <= 0 {
+                missingDataDetails.append("Resting Heart Rate")
+                if useRHRInCalculation {
+                    criticalMissingData.append("Resting Heart Rate")
+                }
+            }
+        } catch {
+            print("DEBUG: Error fetching resting heart rate: \(error.localizedDescription)")
+            missingDataDetails.append("Resting Heart Rate (error)")
+            if useRHRInCalculation {
+                criticalMissingData.append("Resting Heart Rate")
+            }
+        }
+        
+        // Try to get sleep data - but only mark as critical if sleep adjustments are enabled
+        do {
+            sleepData = try await healthKitManager.fetchSleepDataForTimeRange(
+                startTime: calendar.date(byAdding: .day, value: -1, to: startOfDay)!, // Look at previous day for sleep
+                endTime: endOfDay
+            )
+            if sleepData.hours <= 0 {
+                missingDataDetails.append("Sleep")
+                if useSleepInCalculation {
+                    criticalMissingData.append("Sleep")
+                }
+            }
+        } catch {
+            print("DEBUG: Error fetching sleep data: \(error.localizedDescription)")
+            missingDataDetails.append("Sleep (error)")
+            if useSleepInCalculation {
+                criticalMissingData.append("Sleep")
+            }
+        }
+        
+        // If there's any missing data, log it but continue
+        if !missingDataDetails.isEmpty {
+            print("DEBUG: Missing data for date \(date): \(missingDataDetails.joined(separator: ", "))")
+            if !criticalMissingData.isEmpty {
+                print("DEBUG: Critical missing data: \(criticalMissingData.joined(separator: ", "))")
+            }
+        }
+        
+        // We need HRV data to calculate a score
+        // If we couldn't get HRV data, log an error but try a fallback method
+        if hrv <= 0 {
+            // Try using baseline or historical average as a fallback
+            let hrvBaseline = calculateHRVBaseline()
+            if hrvBaseline > 0 {
+                print("DEBUG: Using HRV baseline \(hrvBaseline) as fallback for missing HRV data")
+                hrv = hrvBaseline * 0.85 // Apply a penalty as this is not real data
+                // Remove HRV from critical missing data since we have a fallback
+                if let index = criticalMissingData.firstIndex(of: "HRV") {
+                    criticalMissingData.remove(at: index)
+                }
+            } else {
+                print("DEBUG: No HRV data or baseline available for calculation")
+                throw ReadinessError.historicalDataMissing(
+                    date: date,
+                    missingMetrics: criticalMissingData
+                )
+            }
+        }
+        
+        // Calculate and save score with whatever data we have
+        let score = processAndSaveTodaysData(
+            hrv: hrv,
+            restingHeartRate: restingHeartRate,
+            sleepHours: sleepData.hours,
+            sleepQuality: sleepData.quality,
+            forDate: date,
+            forceRecalculation: true
+        )
+        
+        // If we have incomplete data but still calculated a score, throw a specific error
+        // ONLY if the missing data is for metrics the user has enabled
+        if !criticalMissingData.isEmpty && score != nil {
+            throw ReadinessError.historicalDataIncomplete(
+                date: date,
+                missingMetrics: criticalMissingData,
+                partialResult: true
+            )
+        }
+        
+        return score
+    }
+    
+    // Fetch HRV for a specific date
+    private func fetchHRVForDate(_ date: Date) async throws -> Double {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        switch readinessMode {
+        case .morning:
+            // Use morning window (00:00-10:00)
+            let morningEnd = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: startOfDay)!
+            let hrv = try await healthKitManager.fetchHRVForTimeRange(startTime: startOfDay, endTime: morningEnd)
+            
+            if hrv <= 0 {
+                print("DEBUG: No morning HRV data available for \(date), checking full day instead")
+                // As a fallback, try full day data
+                let fullDayHRV = try await healthKitManager.fetchHRVForTimeRange(startTime: startOfDay, endTime: endOfDay)
+                if fullDayHRV > 0 {
+                    print("DEBUG: Found full day HRV data: \(fullDayHRV) ms")
+                }
+                return fullDayHRV
+            }
+            
+            return hrv
+            
+        case .rolling:
+            // Use full day data for historical dates
+            let hrv = try await healthKitManager.fetchHRVForTimeRange(startTime: startOfDay, endTime: endOfDay)
+            
+            if hrv <= 0 {
+                // If no data for this day, check for the closest previous day that has data
+                print("DEBUG: No HRV data for \(date), checking previous day")
+                
+                // Look up to 3 days back for data
+                for dayOffset in 1...3 {
+                    let previousDate = calendar.date(byAdding: .day, value: -dayOffset, to: startOfDay)!
+                    let previousStartOfDay = calendar.startOfDay(for: previousDate)
+                    let previousEndOfDay = calendar.date(byAdding: .day, value: 1, to: previousStartOfDay)!
+                    
+                    print("DEBUG: Checking \(dayOffset) day(s) back: \(previousDate)")
+                    let previousHRV = try await healthKitManager.fetchHRVForTimeRange(
+                        startTime: previousStartOfDay,
+                        endTime: previousEndOfDay
+                    )
+                    
+                    if previousHRV > 0 {
+                        print("DEBUG: Found HRV data from \(dayOffset) day(s) ago: \(previousHRV) ms")
+                        return previousHRV * 0.95 // Apply a small penalty for using older data
+                    }
+                }
+            }
+            
+            // If we have existing baseline data but no HRV for this day or previous days, use the baseline
+            if hrv <= 0 {
+                let baseline = calculateHRVBaseline()
+                if baseline > 0 {
+                    print("DEBUG: Using HRV baseline as fallback: \(baseline) ms")
+                    return baseline * 0.9 // Apply a penalty for using baseline instead of actual data
+                }
+            }
+            
+            return hrv
+        }
+    }
+    
+    // Process and save data for a specific date
+    func processAndSaveTodaysData(hrv: Double, restingHeartRate: Double, sleepHours: Double, sleepQuality: Int, forDate date: Date = Date(), forceRecalculation: Bool = false) -> ReadinessScore? {
+        print("DEBUG: Processing data for date: \(date), HRV=\(hrv), RHR=\(restingHeartRate), Sleep=\(sleepHours)h")
+        
+        // Check for missing or invalid data
+        var missingData: [String] = []
+        var presentData: [String] = []
+        
+        if hrv <= 0 {
+            missingData.append("HRV")
+        } else {
+            presentData.append("HRV")
+        }
+        
+        if restingHeartRate <= 0 {
+            missingData.append("Resting Heart Rate")
+        } else {
+            presentData.append("Resting Heart Rate")
+        }
+        
+        if sleepHours <= 0 {
+            missingData.append("Sleep Hours")
+        } else {
+            presentData.append("Sleep Hours")
+        }
+        
+        if !missingData.isEmpty {
+            print("DEBUG: WARNING - Missing or invalid data: \(missingData.joined(separator: ", "))")
+        }
+        
+        if presentData.isEmpty {
+            print("DEBUG: ERROR - No valid health data available for date: \(date)")
+            return nil
+        }
+        
+        // If no HRV data available, we cannot calculate a meaningful score
+        if hrv <= 0 {
+            print("DEBUG: Cannot calculate readiness without HRV data")
+            return nil
+        }
+        
+        // Calculate readiness score with whatever data we have
+        let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScore(
+            hrv: hrv,
+            restingHeartRate: restingHeartRate,
+            sleepHours: sleepHours
+        )
+        
+        print("DEBUG: Calculated readiness score for \(date): \(score), category: \(category.rawValue)")
+        
+        // Save to UserDefaults for widget access (only if it's today's data)
+        if Calendar.current.isDateInToday(date) {
+            let sharedDefaults = UserDefaults(suiteName: "group.andreroxhage.Ready-2-0")
+            sharedDefaults?.set(score, forKey: "readinessScore")
+            sharedDefaults?.set(category.rawValue, forKey: "readinessCategory")
+            sharedDefaults?.set(readinessMode.rawValue, forKey: "readinessMode")
+            sharedDefaults?.set(baselinePeriod.rawValue, forKey: "baselinePeriod")
+            sharedDefaults?.set(Date(), forKey: "lastCalculationTime")
+        }
+        
+        // Check if we already have data for this date
+        if let existingMetrics = coreDataManager.getHealthMetricsForDate(date) {
+            print("DEBUG: Found existing health metrics for date: \(date), updating")
+            
+            // Only update metrics we have valid data for
+            if forceRecalculation || hvdDataChanged(existingMetrics, hrv, restingHeartRate, sleepHours) {
+                // Update metrics that are valid
+                if hrv > 0 {
+                    existingMetrics.hrv = hrv
+                }
+                
+                if restingHeartRate > 0 {
+                    existingMetrics.restingHeartRate = restingHeartRate
+                }
+                
+                if sleepHours > 0 {
+                    existingMetrics.sleepHours = sleepHours
+                    existingMetrics.sleepQuality = Int16(sleepQuality)
+                }
+                
+                coreDataManager.saveContext()
+            }
+            
+            // Check if we already have a readiness score for this date
+            if let existingScore = coreDataManager.getReadinessScoreForDate(date) {
+                print("DEBUG: Found existing readiness score for date: \(date), updating")
+                
+                // Only update if forced or values are different
+                if forceRecalculation || scoreDataChanged(existingScore, score, category, hrvBaseline) {
+                    // Update existing score
+                    existingScore.score = score
+                    existingScore.hrvBaseline = hrvBaseline
+                    existingScore.hrvDeviation = hrvDeviation
+                    existingScore.readinessCategory = category.rawValue
+                    existingScore.rhrAdjustment = rhrAdjustment
+                    existingScore.sleepAdjustment = sleepAdjustment
+                    existingScore.readinessMode = readinessMode.rawValue
+                    existingScore.baselinePeriod = Int16(baselinePeriod.rawValue)
+                    existingScore.calculationTimestamp = Date()
+                    
+                    coreDataManager.saveContext()
+                }
+                
+                return existingScore
+            } else {
+                print("DEBUG: No existing readiness score for date: \(date), creating new one")
+                // Create new readiness score
+                return coreDataManager.saveReadinessScore(
+                    date: date,
+                    score: score,
+                    hrvBaseline: hrvBaseline,
+                    hrvDeviation: hrvDeviation,
+                    readinessCategory: category.rawValue,
+                    rhrAdjustment: rhrAdjustment,
+                    sleepAdjustment: sleepAdjustment,
+                    readinessMode: readinessMode.rawValue,
+                    baselinePeriod: baselinePeriod.rawValue,
+                    healthMetrics: existingMetrics
+                )
+            }
+        } else {
+            print("DEBUG: No existing health metrics for date: \(date), creating new ones")
+            // Save new health metrics
+            let healthMetrics = coreDataManager.saveHealthMetrics(
+                date: date,
+                hrv: hrv,
+                restingHeartRate: restingHeartRate,
+                sleepHours: sleepHours,
+                sleepQuality: sleepQuality
+            )
+            
+            print("DEBUG: Creating new readiness score for date: \(date)")
+            // Save readiness score
+            return coreDataManager.saveReadinessScore(
+                date: date,
+                score: score,
+                hrvBaseline: hrvBaseline,
+                hrvDeviation: hrvDeviation,
+                readinessCategory: category.rawValue,
+                rhrAdjustment: rhrAdjustment,
+                sleepAdjustment: sleepAdjustment,
+                readinessMode: readinessMode.rawValue,
+                baselinePeriod: baselinePeriod.rawValue,
+                healthMetrics: healthMetrics
+            )
+        }
+    }
+    
+    // Helper functions to check if data has changed
+    private func hvdDataChanged(_ existingMetrics: HealthMetrics, _ hrv: Double, _ restingHeartRate: Double, _ sleepHours: Double) -> Bool {
+        // Only consider valid data for comparison
+        return (hrv > 0 && existingMetrics.hrv != hrv) || 
+               (restingHeartRate > 0 && existingMetrics.restingHeartRate != restingHeartRate) ||
+               (sleepHours > 0 && existingMetrics.sleepHours != sleepHours)
+    }
+    
+    private func scoreDataChanged(_ existingScore: ReadinessScore, _ score: Double, _ category: ReadinessCategory, _ hrvBaseline: Double) -> Bool {
+        return existingScore.score != score || 
+               existingScore.readinessCategory != category.rawValue ||
+               existingScore.hrvBaseline != hrvBaseline
     }
 } 
