@@ -457,10 +457,29 @@ class ReadinessViewModel: ObservableObject {
                     self.loadPastScores(days: 30)
                     self.isLoading = false
                 }
+            } catch let readinessError as ReadinessError {
+                await MainActor.run {
+                    // Filter out common non-critical errors
+                    if case .historicalDataIncomplete(_, _, let partialResult) = readinessError, partialResult {
+                        print("DEBUG: Partial data available, continuing without showing error")
+                        // Still try to load whatever data we have
+                        self.loadTodaysReadinessScore()
+                        self.loadPastScores(days: 30)
+                    } else {
+                        print("DEBUG: ReadinessError calculating readiness score: \(readinessError)")
+                        self.error = readinessError
+                    }
+                    self.isLoading = false
+                }
             } catch {
                 await MainActor.run {
-                    if let readinessError = error as? ReadinessError {
-                        self.error = readinessError
+                    // Filter out common "no data" errors that aren't critical
+                    if error.localizedDescription.contains("no data available") || 
+                       error.localizedDescription.contains("specified predicate") {
+                        print("DEBUG: Non-critical error during calculation: \(error.localizedDescription)")
+                        // Still try to load whatever data we have
+                        self.loadTodaysReadinessScore() 
+                        self.loadPastScores(days: 30)
                     } else {
                         self.error = .unknownError(error)
                     }
