@@ -8,25 +8,15 @@
 import SwiftUI
 import HealthKit
 import CoreData
-
-#if os(iOS)
+import Foundation
 import UIKit
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        // Request HealthKit authorization when app launches
-        Task {
-            do {
-                try await HealthKitManager.shared.requestAuthorization()
-                // Setup background observers after authorization
-                HealthKitManager.shared.setupBackgroundObservers()
-                
-                // Initialize CoreData
-                _ = CoreDataManager.shared
-            } catch {
-                print("Failed to request HealthKit authorization: \(error)")
-            }
-        }
+        // Initialize CoreData
+        _ = CoreDataManager.shared
+        
+        // We'll handle HealthKit authorization during onboarding instead of here
         return true
     }
     
@@ -37,19 +27,26 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
     }
 }
-#endif
-
 @main
 struct Ready_2_0App: App {
     #if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     #endif
     
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @StateObject private var viewModel = ReadinessViewModel()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, CoreDataManager.shared.viewContext)
-                .environment(\.appearanceViewModel, AppearanceViewModel.shared)
+            if hasCompletedOnboarding {
+                ContentView(viewModel: viewModel)
+                    .environment(\.managedObjectContext, CoreDataManager.shared.viewContext)
+                    .environment(\.appearanceViewModel, AppearanceViewModel.shared)
+            } else {
+                OnboardingView(viewModel: viewModel)
+                    .environment(\.managedObjectContext, CoreDataManager.shared.viewContext)
+                    .environment(\.appearanceViewModel, AppearanceViewModel.shared)
+            }
         }
     }
 }

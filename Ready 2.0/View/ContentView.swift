@@ -53,7 +53,7 @@ class HealthDataProvider {
 }
 
 struct ContentView: View {
-    @ObservedObject var viewModel = ReadinessViewModel()
+    @ObservedObject var viewModel: ReadinessViewModel
     @StateObject private var appearanceViewModel = AppearanceViewModel.shared
     @AppStorage("readinessMode") private var readinessMode: String = "morning"
     @State private var showingInfo = false
@@ -368,6 +368,6 @@ struct ContentView: View {
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-        ContentView()
+        ContentView(viewModel: ReadinessViewModel())
     }
 }
