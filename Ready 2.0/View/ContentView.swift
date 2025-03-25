@@ -356,11 +356,6 @@ struct ContentView: View {
                 await MainActor.run {
                     isLoading = false
                 }
-            } catch {
-                print("Health data error: \(error)")
-                await MainActor.run {
-                    isLoading = false
-                }
             }
         }
     }

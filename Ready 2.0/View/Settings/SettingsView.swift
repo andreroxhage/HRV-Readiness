@@ -132,15 +132,13 @@ struct SettingsView: View {
                 }
                 
                 // Last calculation time
-                if let lastTime = viewModel.lastCalculationTime {
-                    Section {
-                        HStack {
-                            Image(systemName: "clock")
-                                .foregroundStyle(.gray)
-                            Text(viewModel.formattedLastCalculationTime)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                Section {
+                    HStack {
+                        Image(systemName: "clock")
+                            .foregroundStyle(.gray)
+                        Text(viewModel.formattedLastCalculationTime)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 
@@ -186,7 +184,6 @@ struct SettingsView: View {
                 } footer: {
                     Text("Review and manage health data permissions used by the app.")
                 }
-            
                 
                 // About Section
                 Section {

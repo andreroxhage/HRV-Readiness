@@ -131,8 +131,8 @@ class ReadinessViewModel: ObservableObject {
                 
                 // Fetch health data with proper error handling
                 var restingHeartRate: Double = 0
-                var sleepData = try await healthData.fetchSleepData()
-                
+                let sleepData = try await healthData.fetchSleepData()
+
                 do {
                     restingHeartRate = try await healthData.fetchRestingHeartRate()
                 } catch {
@@ -540,76 +540,75 @@ class ReadinessViewModel: ObservableObject {
     func recalculateAllPastScores(days: Int = 30) {
         print("DEBUG: Recalculating all readiness scores for the past \(days) days")
         Task {
-            do {
-                await MainActor.run {
-                    self.isLoading = true
-                    self.error = nil
-                }
-                
-                let calendar = Calendar.current
-                let today = Date()
-                
-                var processingErrors: [String] = []
+            let calendar = Calendar.current
+            let today = Date()
+            
+            // Create an actor to safely manage mutable state
+            actor ProcessingState {
+                var errors: [String] = []
                 var successfulDates = 0
                 var failedDates = 0
                 
-                // Process each day
-                for dayOffset in 0..<days {
-                    let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
-                    print("DEBUG: Processing day \(dayOffset + 1) of \(days): \(date)")
-                    
-                    do {
-                        let _ = try await readinessService.recalculateReadinessForDate(date)
-                        successfulDates += 1
-                    } catch let error as ReadinessError {
-                        print("DEBUG: Error processing date \(date): \(error.localizedDescription)")
-                        
-                        // Format the date for error message
-                        let dateFormatter = DateFormatter()
-                        dateFormatter.dateStyle = .short
-                        let dateString = dateFormatter.string(from: date)
-                        
-                        // Add this date's error to our list
-                        processingErrors.append("\(dateString): \(error.localizedDescription)")
-                        failedDates += 1
-                        
-                        // Continue with the next date
-                    } catch {
-                        print("DEBUG: Unknown error processing date \(date): \(error.localizedDescription)")
-                        failedDates += 1
-                    }
+                func addError(_ error: String) {
+                    errors.append(error)
+                    failedDates += 1
                 }
                 
-                await MainActor.run {
-                    self.loadTodaysReadinessScore()
-                    self.loadPastScores(days: days)
-                    
-                    // If we had any errors, create a summary error
-                    if !processingErrors.isEmpty {
-                        // Limit to first 3 errors to avoid overwhelming the user
-                        let errorSamples = Array(processingErrors.prefix(3))
-                        let additional = processingErrors.count > 3 ? " (and \(processingErrors.count - 3) more)" : ""
-                        
-                        self.error = ReadinessError.dataProcessingFailed(
-                            component: "historical data",
-                            reason: "Successfully processed \(successfulDates) days, failed on \(failedDates) days. Issues: \(errorSamples.joined(separator: "; "))\(additional)"
-                        )
-                    } else {
-                        // Clear error if all was successful
-                        self.error = nil
-                    }
-                    
-                    self.isLoading = false
+                func incrementSuccess() {
+                    successfulDates += 1
                 }
-            } catch {
-                await MainActor.run {
-                    if let readinessError = error as? ReadinessError {
-                        self.error = readinessError
-                    } else {
-                        self.error = .unknownError(error)
-                    }
-                    self.isLoading = false
+                
+                func getSummary() -> (successful: Int, failed: Int, errors: [String]) {
+                    return (successfulDates, failedDates, errors)
                 }
+            }
+            
+            let state = ProcessingState()
+            
+            // Process each day
+            for dayOffset in 0..<days {
+                let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
+                print("DEBUG: Processing day \(dayOffset + 1) of \(days): \(date)")
+                
+                do {
+                    let _ = try await readinessService.recalculateReadinessForDate(date)
+                    await state.incrementSuccess()
+                } catch {
+                    print("DEBUG: Error processing date \(date): \(error.localizedDescription)")
+                    
+                    // Format the date for error message
+                    let dateFormatter = DateFormatter()
+                    dateFormatter.dateStyle = .short
+                    let dateString = dateFormatter.string(from: date)
+                    
+                    // Add this date's error to our state
+                    await state.addError("\(dateString): \(error.localizedDescription)")
+                }
+            }
+            
+            // Get final state
+            let summary = await state.getSummary()
+            
+            await MainActor.run {
+                self.loadTodaysReadinessScore()
+                self.loadPastScores(days: days)
+                
+                // If we had any errors, create a summary error
+                if !summary.errors.isEmpty {
+                    // Limit to first 3 errors to avoid overwhelming the user
+                    let errorSamples = Array(summary.errors.prefix(3))
+                    let additional = summary.errors.count > 3 ? " (and \(summary.errors.count - 3) more)" : ""
+                    
+                    self.error = ReadinessError.dataProcessingFailed(
+                        component: "historical data",
+                        reason: "Successfully processed \(summary.successful) days, failed on \(summary.failed) days. Issues: \(errorSamples.joined(separator: "; "))\(additional)"
+                    )
+                } else {
+                    // Clear error if all was successful
+                    self.error = nil
+                }
+                
+                self.isLoading = false
             }
         }
     }

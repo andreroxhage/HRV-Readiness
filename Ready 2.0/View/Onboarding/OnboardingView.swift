@@ -1000,31 +1000,40 @@ struct OnboardingView: View {
                 .background(Color.accentColor.opacity(0.1))
                 .clipShape(Circle())
                 .opacity(animateIcons ? 1 : 0)
-                .offset(x: animateIcons ? 0 : -20)
+                .scaleEffect(animateIcons ? 1 : 0.5)
+                .rotationEffect(.degrees(animateIcons ? 0 : -180))
+                .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateIcons)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
                     .font(.headline)
                     .fontWeight(.semibold)
+                    .opacity(animateContent ? 1 : 0)
+                    .offset(y: animateContent ? 0 : 20)
                 
                 Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .opacity(animateContent ? 1 : 0)
+                    .offset(y: animateContent ? 0 : 20)
             }
-            .opacity(animateContent ? 1 : 0)
-            .offset(x: animateContent ? 0 : 20)
+            .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(secondaryBackgroundColor)
+                .opacity(animateContent ? 1 : 0)
+                .scaleEffect(animateContent ? 1 : 0.95)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.accentColor.opacity(0.1), lineWidth: 1)
+                .opacity(animateContent ? 1 : 0)
         )
+        .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
     }
     
     private func benefitCard(icon: String, title: String, description: String, color: Color = Color.accentColor) -> some View {
@@ -1037,68 +1046,86 @@ struct OnboardingView: View {
                 .background(color.opacity(0.1))
                 .clipShape(Circle())
                 .opacity(animateIcons ? 1 : 0)
-                .offset(x: animateIcons ? 0 : -20)
+                .scaleEffect(animateIcons ? 1 : 0.5)
+                .rotationEffect(.degrees(animateIcons ? 0 : -180))
+                .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateIcons)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
                     .font(.headline)
                     .fontWeight(.semibold)
+                    .opacity(animateContent ? 1 : 0)
+                    .offset(y: animateContent ? 0 : 20)
                 
                 Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .opacity(animateContent ? 1 : 0)
+                    .offset(y: animateContent ? 0 : 20)
             }
-            .opacity(animateContent ? 1 : 0)
-            .offset(x: animateContent ? 0 : 20)
+            .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(secondaryBackgroundColor)
+                .opacity(animateContent ? 1 : 0)
+                .scaleEffect(animateContent ? 1 : 0.95)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(color.opacity(0.1), lineWidth: 1)
+                .opacity(animateContent ? 1 : 0)
         )
+        .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
     }
     
     private func factorCard(icon: String, title: String, description: String, color: Color = Color.accentColor) -> some View {
         HStack(alignment: .top, spacing: 16) {
             Image(systemName: icon)
-                .font(.system(size: 20))
+                .font(.system(size: 22))
                 .foregroundColor(color)
-                .frame(width: 30, height: 30)
-                .padding(6)
+                .frame(width: 32, height: 32)
+                .padding(8)
                 .background(color.opacity(0.1))
                 .clipShape(Circle())
                 .opacity(animateIcons ? 1 : 0)
-                .offset(x: animateIcons ? 0 : -20)
+                .scaleEffect(animateIcons ? 1 : 0.5)
+                .rotationEffect(.degrees(animateIcons ? 0 : -180))
+                .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateIcons)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
                     .font(.headline)
                     .fontWeight(.semibold)
+                    .opacity(animateContent ? 1 : 0)
+                    .offset(y: animateContent ? 0 : 20)
                 
                 Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .opacity(animateContent ? 1 : 0)
+                    .offset(y: animateContent ? 0 : 20)
             }
-            .opacity(animateContent ? 1 : 0)
-            .offset(x: animateContent ? 0 : 20)
+            .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(secondaryBackgroundColor)
+                .opacity(animateContent ? 1 : 0)
+                .scaleEffect(animateContent ? 1 : 0.95)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(color.opacity(0.1), lineWidth: 1)
+                .opacity(animateContent ? 1 : 0)
         )
+        .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
     }
     
     private func healthDataItem(icon: String, text: String, color: Color = .red) -> some View {
@@ -1107,10 +1134,17 @@ struct OnboardingView: View {
                 .font(.system(size: 22))
                 .foregroundColor(color)
                 .frame(width: 28)
+                .opacity(animateIcons ? 1 : 0)
+                .scaleEffect(animateIcons ? 1 : 0.5)
+                .rotationEffect(.degrees(animateIcons ? 0 : -180))
+                .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateIcons)
                         
             Text(text)
                 .font(.body)
                 .fontWeight(.medium)
+                .opacity(animateContent ? 1 : 0)
+                .offset(y: animateContent ? 0 : 20)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7, blendDuration: 0.3), value: animateContent)
         }
         .frame(maxWidth: 280)
     }
@@ -1185,9 +1219,8 @@ struct OnboardingView: View {
                 let importWeight = 0.6 // 60% of total progress
                 
                 // Start the actual work
-                let startTime = Date()
                 let pastScoreTask = Task {
-                    try await viewModel.recalculateAllPastScores(days: 30) // Reduced from 90 days to 30 for faster processing
+                    viewModel.recalculateAllPastScores(days: 30) // Reduced from 90 days to 30 for faster processing
                 }
                 
                 // While the calculation is happening, update progress proportionally
@@ -1232,7 +1265,7 @@ struct OnboardingView: View {
                 }
                 
                 // Wait for the task to complete
-                try await pastScoreTask.value
+                await pastScoreTask.value
                 
                 // Set status for second major operation
                 await MainActor.run {
@@ -1242,8 +1275,8 @@ struct OnboardingView: View {
                 }
                 
                 // Second major operation - calculate readiness score (20% of progress)
-                try await viewModel.recalculateReadinessScore()
-                
+                viewModel.recalculateReadinessScore()
+
                 // Complete progress to 100%
                 for i in 1...3 { // Reduced from 5 iterations to 3
                     try await Task.sleep(nanoseconds: 50_000_000) // Faster animation (50ms instead of 100ms)
@@ -1266,7 +1299,6 @@ struct OnboardingView: View {
                         importProgress = 1.0
                     }
                     
-                    // Short delay before showing the completion state
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { // Reduced from 0.5
                         isImportingData = false
                         importStatus = "Your readiness profile is ready!"
@@ -1376,8 +1408,7 @@ struct MockParticlesView: View {
                     )
                     .animation(
                         Animation.easeInOut(duration: Double.random(in: 1.5...3.0))
-                            .repeatForever(autoreverses: true)
-                            .delay(Double.random(in: 0...1.5)),
+                            .repeatForever(autoreverses: true),
                         value: isAnimating
                     )
             }
@@ -1398,8 +1429,7 @@ struct MockParticlesView: View {
                         )
                         .opacity(shouldExplode ? 0 : 1) // Fade out
                         .animation(
-                            Animation.easeOut(duration: Double.random(in: 0.8...1.2))
-                                .delay(Double.random(in: 0...0.3)),
+                            Animation.easeOut(duration: Double.random(in: 0.8...1.2)),
                             value: shouldExplode
                         )
                 }
