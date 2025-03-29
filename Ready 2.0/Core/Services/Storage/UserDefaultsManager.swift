@@ -1,0 +1,177 @@
+import Foundation
+
+// UserDefaultsManager
+// Responsible for:
+// - Managing app settings and preferences
+// - Providing type-safe access to UserDefaults
+// - Centralizing default values
+// - Not responsible for business logic or UI
+
+class UserDefaultsManager {
+    static let shared = UserDefaultsManager()
+    
+    // MARK: - Constants
+    
+    // Keys for UserDefaults
+    private enum Keys {
+        static let readinessMode = "readinessMode"
+        static let baselinePeriod = "baselinePeriod"
+        static let useRHRAdjustment = "useRHRAdjustment"
+        static let useSleepAdjustment = "useSleepAdjustment"
+        static let minimumDaysForBaseline = "minimumDaysForBaseline"
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let lastCalculationTime = "lastCalculationTime"
+        static let lastHRVBaselineCalculation = "lastHRVBaselineCalculation"
+        static let lastRHRBaselineCalculation = "lastRHRBaselineCalculation"
+    }
+    
+    // Default values
+    private enum Defaults {
+        static let readinessMode = ReadinessMode.morning
+        static let baselinePeriod = BaselinePeriod.sevenDays
+        static let useRHRAdjustment = true
+        static let useSleepAdjustment = true
+        static let minimumDaysForBaseline = 3
+        static let hasCompletedOnboarding = false
+    }
+    
+    // MARK: - Properties
+    
+    private let userDefaults = UserDefaults.standard
+    private let appGroupDefaults = UserDefaults(suiteName: "group.andreroxhage.Ready-2-0")
+    
+    // MARK: - Initialization
+    
+    private init() {
+        // Private initializer for singleton
+        setupDefaultValues()
+    }
+    
+    // MARK: - Setup
+    
+    private func setupDefaultValues() {
+        // Set default values if not already set
+        if !userDefaults.contains(key: Keys.readinessMode) {
+            userDefaults.set(Defaults.readinessMode.rawValue, forKey: Keys.readinessMode)
+        }
+        
+        if !userDefaults.contains(key: Keys.baselinePeriod) {
+            userDefaults.set(Defaults.baselinePeriod.rawValue, forKey: Keys.baselinePeriod)
+        }
+        
+        if !userDefaults.contains(key: Keys.useRHRAdjustment) {
+            userDefaults.set(Defaults.useRHRAdjustment, forKey: Keys.useRHRAdjustment)
+        }
+        
+        if !userDefaults.contains(key: Keys.useSleepAdjustment) {
+            userDefaults.set(Defaults.useSleepAdjustment, forKey: Keys.useSleepAdjustment)
+        }
+        
+        if !userDefaults.contains(key: Keys.minimumDaysForBaseline) {
+            userDefaults.set(Defaults.minimumDaysForBaseline, forKey: Keys.minimumDaysForBaseline)
+        }
+    }
+    
+    // MARK: - Readiness Settings
+    
+    var readinessMode: ReadinessMode {
+        get {
+            let modeString = userDefaults.string(forKey: Keys.readinessMode) ?? Defaults.readinessMode.rawValue
+            return ReadinessMode(rawValue: modeString) ?? Defaults.readinessMode
+        }
+        set {
+            userDefaults.set(newValue.rawValue, forKey: Keys.readinessMode)
+            
+            // Also update app group for widget
+            appGroupDefaults?.set(newValue.rawValue, forKey: Keys.readinessMode)
+        }
+    }
+    
+    var baselinePeriod: BaselinePeriod {
+        get {
+            let days = userDefaults.integer(forKey: Keys.baselinePeriod)
+            return BaselinePeriod(rawValue: days) ?? Defaults.baselinePeriod
+        }
+        set {
+            userDefaults.set(newValue.rawValue, forKey: Keys.baselinePeriod)
+            
+            // Also update app group for widget
+            appGroupDefaults?.set(newValue.rawValue, forKey: Keys.baselinePeriod)
+        }
+    }
+    
+    var useRHRAdjustment: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.useRHRAdjustment)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.useRHRAdjustment)
+        }
+    }
+    
+    var useSleepAdjustment: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.useSleepAdjustment)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.useSleepAdjustment)
+        }
+    }
+    
+    var minimumDaysForBaseline: Int {
+        get {
+            let days = userDefaults.integer(forKey: Keys.minimumDaysForBaseline)
+            return days != 0 ? days : Defaults.minimumDaysForBaseline
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.minimumDaysForBaseline)
+        }
+    }
+    
+    var hasCompletedOnboarding: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.hasCompletedOnboarding)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.hasCompletedOnboarding)
+        }
+    }
+    
+    var lastCalculationTime: Date? {
+        get {
+            return userDefaults.object(forKey: Keys.lastCalculationTime) as? Date
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.lastCalculationTime)
+            
+            // Also update app group for widget
+            appGroupDefaults?.set(newValue, forKey: Keys.lastCalculationTime)
+        }
+    }
+    
+    var lastHRVBaselineCalculation: Date? {
+        get {
+            return userDefaults.object(forKey: Keys.lastHRVBaselineCalculation) as? Date
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.lastHRVBaselineCalculation)
+        }
+    }
+    
+    var lastRHRBaselineCalculation: Date? {
+        get {
+            return userDefaults.object(forKey: Keys.lastRHRBaselineCalculation) as? Date
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.lastRHRBaselineCalculation)
+        }
+    }
+}
+
+// MARK: - Extensions
+
+extension UserDefaults {
+    func contains(key: String) -> Bool {
+        return object(forKey: key) != nil
+    }
+} 
