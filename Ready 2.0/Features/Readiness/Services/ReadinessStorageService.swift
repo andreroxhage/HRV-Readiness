@@ -82,7 +82,20 @@ class ReadinessStorageService {
     }
     
     func getHealthMetricsForPastDays(_ days: Int) -> [HealthMetrics] {
-        return coreDataManager.getHealthMetricsForPastDays(days)
+        print("💾 STORAGE: Fetching health metrics for past \(days) days")
+        let metrics = coreDataManager.getHealthMetricsForPastDays(days)
+        print("💾 STORAGE: Retrieved \(metrics.count) health metric records")
+        
+        // Debug: let's see what dates we have data for
+        for (index, metric) in metrics.enumerated() {
+            if let date = metric.date {
+                print("💾 STORAGE: Record \(index + 1): Date=\(date), HRV=\(metric.hrv), RHR=\(metric.restingHeartRate)")
+            } else {
+                print("💾 STORAGE: Record \(index + 1): Date=nil, HRV=\(metric.hrv), RHR=\(metric.restingHeartRate)")
+            }
+        }
+        
+        return metrics
     }
     
     // MARK: - Utility Methods

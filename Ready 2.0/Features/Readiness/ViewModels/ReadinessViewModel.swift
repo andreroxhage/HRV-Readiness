@@ -26,11 +26,16 @@ class ReadinessViewModel: ObservableObject {
     @Published var error: ReadinessError?
     @Published var pastScores: [ReadinessScore] = []
     
-    // Settings
+    // Initial setup state
+    @Published var isPerformingInitialSetup: Bool = false
+    @Published var initialSetupProgress: Double = 0.0
+    @Published var initialSetupStatus: String = ""
+    
+    // Settings - Updated for FR-2 requirements
     @Published var readinessMode: ReadinessMode = .morning
-    @Published var baselinePeriod: BaselinePeriod = .sevenDays
-    @Published var useRHRAdjustment: Bool = true
-    @Published var useSleepAdjustment: Bool = true
+    @Published var baselinePeriod: BaselinePeriod = .sevenDays // FR-2: 7-day rolling baseline default
+    @Published var useRHRAdjustment: Bool = false
+    @Published var useSleepAdjustment: Bool = false
     @Published var lastCalculationTime: Date?
     
     // MARK: - Dependencies
@@ -42,6 +47,9 @@ class ReadinessViewModel: ObservableObject {
     
     // For UserDefaults access
     private var cancellables = Set<AnyCancellable>()
+    
+    // Debouncing for expensive recalculations
+    private var recalculationTimer: Timer?
     
     // MARK: - Initialization
     
@@ -62,11 +70,8 @@ class ReadinessViewModel: ObservableObject {
         // Setup observers for settings changes
         setupObservers()
         
-        // Load initial data
-        Task {
-            await loadTodaysReadinessScore()
-            await loadPastScores()
-        }
+        // Load settings from UserDefaults but don't trigger initial setup yet
+        // Initial setup will be triggered when ContentView appears for users who completed onboarding
     }
     
     // MARK: - Setup
@@ -77,9 +82,12 @@ class ReadinessViewModel: ObservableObject {
             .sink { [weak self] _ in
                 guard let self = self else { return }
                 
+                print("⚙️ VIEWMODEL: UserDefaults changed, checking for setting updates...")
+                
                 // Check for readiness mode changes
                 let newMode = self.userDefaultsManager.readinessMode
                 if newMode != self.readinessMode {
+                    print("🔄 VIEWMODEL: Readiness mode changed from \(self.readinessMode.rawValue) to \(newMode.rawValue)")
                     self.readinessMode = newMode
                     self.recalculateReadiness()
                 }
@@ -87,21 +95,24 @@ class ReadinessViewModel: ObservableObject {
                 // Check for baseline period changes
                 let newPeriod = self.userDefaultsManager.baselinePeriod
                 if newPeriod != self.baselinePeriod {
+                    print("🔄 VIEWMODEL: Baseline period changed from \(self.baselinePeriod.rawValue) to \(newPeriod.rawValue)")
                     self.baselinePeriod = newPeriod
-                    self.recalculateReadiness()
+                    self.scheduleHistoricalRecalculation(reason: "baseline period change")
                 }
                 
                 // Check for adjustment toggles
                 let newUseRHR = self.userDefaultsManager.useRHRAdjustment
                 if newUseRHR != self.useRHRAdjustment {
+                    print("💓 VIEWMODEL: RHR adjustment changed from \(self.useRHRAdjustment) to \(newUseRHR)")
                     self.useRHRAdjustment = newUseRHR
-                    self.recalculateReadiness()
+                    self.scheduleHistoricalRecalculation(reason: "RHR adjustment change")
                 }
                 
                 let newUseSleep = self.userDefaultsManager.useSleepAdjustment
                 if newUseSleep != self.useSleepAdjustment {
+                    print("😴 VIEWMODEL: Sleep adjustment changed from \(self.useSleepAdjustment) to \(newUseSleep)")
                     self.useSleepAdjustment = newUseSleep
-                    self.recalculateReadiness()
+                    self.scheduleHistoricalRecalculation(reason: "sleep adjustment change")
                 }
             }
             .store(in: &cancellables)
@@ -112,6 +123,7 @@ class ReadinessViewModel: ObservableObject {
     func loadTodaysReadinessScore() async {
         await MainActor.run {
             self.isLoading = true
+            self.error = nil
         }
         
         if let score = readinessService.getTodaysReadinessScore() {
@@ -149,6 +161,7 @@ class ReadinessViewModel: ObservableObject {
     func loadPastScores(days: Int = 30) async {
         await MainActor.run {
             self.isLoading = true
+            self.error = nil
         }
         
         let scores = readinessService.getReadinessScoresForPastDays(days)
@@ -162,6 +175,8 @@ class ReadinessViewModel: ObservableObject {
     // MARK: - Calculation Actions
     
     func calculateReadiness(restingHeartRate: Double, sleepHours: Double, sleepQuality: Int) {
+        print("🎯 VIEWMODEL: calculateReadiness called with RHR=\(restingHeartRate), Sleep=\(sleepHours)h, Quality=\(sleepQuality)")
+        
         Task {
             await MainActor.run {
                 self.isLoading = true
@@ -169,11 +184,13 @@ class ReadinessViewModel: ObservableObject {
             }
             
             do {
+                print("🔄 VIEWMODEL: Calling calculationViewModel.calculateReadiness")
                 if let score = try await calculationViewModel.calculateReadiness(
                     restingHeartRate: restingHeartRate,
                     sleepHours: sleepHours,
                     sleepQuality: sleepQuality
                 ) {
+                    print("✅ VIEWMODEL: Successfully calculated readiness score: \(score.score)")
                     await MainActor.run {
                         self.readinessScore = score.score
                         self.readinessCategory = score.category
@@ -269,6 +286,38 @@ class ReadinessViewModel: ObservableObject {
                     self.error = .unknownError(error)
                     self.isLoading = false
                 }
+            }
+        }
+    }
+    
+    func recalculateAllScores() async {
+        await MainActor.run {
+            self.isLoading = true
+            self.error = nil
+        }
+        
+        do {
+            // Use the ReadinessService to recalculate all scores
+            try await readinessService.recalculateAllReadinessScores()
+            
+            await MainActor.run {
+                self.isLoading = false
+                
+                // Reload all data to reflect the updated scores
+                Task {
+                    await self.loadTodaysReadinessScore()
+                    await self.loadPastScores()
+                }
+            }
+        } catch let error as ReadinessError {
+            await MainActor.run {
+                self.error = error
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.error = .unknownError(error)
+                self.isLoading = false
             }
         }
     }
@@ -375,6 +424,115 @@ class ReadinessViewModel: ObservableObject {
         return (hours: sleepData.hours, quality: sleepData.quality)
     }
     
+    // MARK: - Debounced Recalculation
+    
+    /// Schedules a historical recalculation with debouncing to avoid excessive recalculation
+    private func scheduleHistoricalRecalculation(reason: String) {
+        print("⏱️ VIEWMODEL: Scheduling debounced recalculation for: \(reason)")
+        
+        // Set loading state immediately for user feedback
+        Task { @MainActor in
+            self.isLoading = true
+            self.error = nil
+        }
+        
+        // Cancel any existing timer
+        recalculationTimer?.invalidate()
+        
+        // Schedule new recalculation after 1 second delay
+        recalculationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            
+            print("🔄 VIEWMODEL: Executing debounced historical recalculation")
+            
+            Task { @MainActor in
+                // First recalculate today's score for immediate feedback
+                await self.performQuickRecalculation()
+                
+                // Then do the expensive historical recalculation in the background
+                Task.detached {
+                    do {
+                        try await self.readinessService.recalculateAllReadinessScores()
+                        
+                        // Update UI on main thread
+                        await MainActor.run {
+                            Task {
+                                await self.loadTodaysReadinessScore()
+                                await self.loadPastScores()
+                                self.isLoading = false
+                            }
+                        }
+                    } catch {
+                        await MainActor.run {
+                            self.error = error as? ReadinessError ?? .unknownError(error)
+                            self.isLoading = false
+                            print("❌ VIEWMODEL: Historical recalculation failed: \(error)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Quick recalculation for immediate user feedback
+    @MainActor
+    private func performQuickRecalculation() async {
+        do {
+            if let score = try await calculationViewModel.recalculateReadinessForDate(Date()) {
+                self.readinessScore = score.score
+                self.readinessCategory = score.category
+                self.hrvBaseline = score.hrvBaseline
+                self.hrvDeviation = score.hrvDeviation
+                self.rhrAdjustment = score.rhrAdjustment
+                self.sleepAdjustment = score.sleepAdjustment
+                self.lastCalculationTime = score.calculationTimestamp
+            }
+        } catch {
+            print("⚠️ VIEWMODEL: Quick recalculation failed, will be updated after full recalculation")
+        }
+    }
+    
+    // MARK: - Initial Setup Methods
+    
+    @MainActor
+    func checkAndPerformInitialSetup() async {
+        // Check if initial data import has been completed
+        if !readinessService.hasCompletedInitialDataImport {
+            print("🚀 VIEWMODEL: Initial data import needed")
+            await performInitialDataImport()
+        } else {
+            // Initial setup already completed, just load regular data
+            await loadTodaysReadinessScore()
+            await loadPastScores()
+        }
+    }
+    
+    @MainActor
+    private func performInitialDataImport() async {
+        isPerformingInitialSetup = true
+        initialSetupProgress = 0.0
+        initialSetupStatus = "Preparing to import historical data..."
+        
+        do {
+            try await readinessService.performInitialDataImportAndSetup { [weak self] progress, status in
+                Task { @MainActor in
+                    self?.initialSetupProgress = progress
+                    self?.initialSetupStatus = status
+                }
+            }
+            
+            // After successful import, load the data
+            await loadTodaysReadinessScore()
+            await loadPastScores()
+            
+        } catch {
+            self.error = error as? ReadinessError ?? .unknownError(error)
+            print("❌ VIEWMODEL: Initial data import failed: \(error)")
+        }
+        
+        isPerformingInitialSetup = false
+    }
+    
     // MARK: - UI Helper Properties
     
     var readinessModeDescription: String {
@@ -394,14 +552,17 @@ class ReadinessViewModel: ObservableObject {
     }
     
     var hrvDeviationColor: Color {
-        if hrvDeviation >= 0 {
-            return .green
-        } else if hrvDeviation >= -5 {
-            return .yellow
+        // Updated for FR-3 algorithm thresholds
+        if hrvDeviation > 10 {
+            return .green        // >10% above baseline (Supercompensation)
+        } else if hrvDeviation >= -3 {
+            return .green        // Within ±3% or up to 10% above (Optimal range)
+        } else if hrvDeviation >= -7 {
+            return .yellow       // 3-7% below baseline (Moderate)
         } else if hrvDeviation >= -10 {
-            return .orange
+            return .orange       // 7-10% below baseline (Low)
         } else {
-            return .red
+            return .red          // >10% below baseline (Fatigue)
         }
     }
     
@@ -451,7 +612,7 @@ class ReadinessViewModel: ObservableObject {
         }
     }
     
-    // Get gradient for a readiness score
+    // Get gradient for a readiness score (medium opacity for UI elements)
     func getGradient(for score: Double, isDarkMode: Bool) -> LinearGradient {
         let category = ReadinessCategory.forScore(score)
         
@@ -478,6 +639,32 @@ class ReadinessViewModel: ObservableObject {
             gradientColors = isDarkMode ?
                 [Color.gray.opacity(0.6), Color.gray.opacity(0.2)] :
                 [Color.gray.opacity(0.4), Color.gray.opacity(0.1)]
+        }
+        
+        return LinearGradient(
+            gradient: Gradient(colors: gradientColors),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    // Get subtle background gradient for screen backgrounds (light opacity)
+    func getBackgroundGradient(for score: Double, isDarkMode: Bool) -> LinearGradient {
+        let category = ReadinessCategory.forScore(score)
+        
+        let gradientColors: [Color]
+        
+        switch category {
+        case .optimal:
+            gradientColors = [Color.green.opacity(0.1), Color.green.opacity(0.05)]
+        case .moderate:
+            gradientColors = [Color.yellow.opacity(0.1), Color.yellow.opacity(0.05)]
+        case .low:
+            gradientColors = [Color.orange.opacity(0.1), Color.orange.opacity(0.05)]
+        case .fatigue:
+            gradientColors = [Color.red.opacity(0.1), Color.red.opacity(0.05)]
+        default:
+            gradientColors = [Color.gray.opacity(0.1), Color.gray.opacity(0.05)]
         }
         
         return LinearGradient(

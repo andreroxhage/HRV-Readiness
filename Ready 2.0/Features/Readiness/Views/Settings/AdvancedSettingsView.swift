@@ -22,9 +22,9 @@ struct AdvancedSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .onChange(of: minimumDaysForBaseline) { newValue in
+                .onChange(of: minimumDaysForBaseline) {
                     // Update UserDefaults - will be picked up by ReadinessService
-                    UserDefaults.standard.set(newValue, forKey: "minimumDaysForBaseline")
+                    UserDefaults.standard.set(minimumDaysForBaseline, forKey: "minimumDaysForBaseline")
                     
                     // Trigger recalculation if needed
                     if viewModel.hasBaselineData {
@@ -62,8 +62,8 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 .disabled(viewModel.isLoading)
-                .onChange(of: viewModel.isLoading) { newValue in
-                    if !newValue {
+                .onChange(of: viewModel.isLoading) {
+                    if !viewModel.isLoading {
                         isRecalculating = false
                         
                         // Check if there was an error

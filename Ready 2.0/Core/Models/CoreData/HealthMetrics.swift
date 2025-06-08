@@ -34,6 +34,26 @@ extension HealthMetrics {
         return hasValidHRV && restingHeartRate > 30 && sleepHours > 0
     }
     
+    // Check if has minimum required metrics for readiness calculation (just HRV)
+    var hasMinimumMetrics: Bool {
+        return hasValidHRV
+    }
+    
+    // Check if has required metrics based on user settings
+    func hasRequiredMetrics(useRHR: Bool, useSleep: Bool) -> Bool {
+        var required = hasValidHRV
+        
+        if useRHR {
+            required = required && restingHeartRate > 30
+        }
+        
+        if useSleep {
+            required = required && sleepHours > 0
+        }
+        
+        return required
+    }
+    
     // Get the missing metrics description
     var missingMetricsDescription: [String] {
         var missing: [String] = []

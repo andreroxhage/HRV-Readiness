@@ -1,5 +1,8 @@
 import Foundation
 
+// Import the enums needed for defaults
+// These should be available since they're in the same module
+
 // UserDefaultsManager
 // Responsible for:
 // - Managing app settings and preferences
@@ -20,17 +23,19 @@ class UserDefaultsManager {
         static let useSleepAdjustment = "useSleepAdjustment"
         static let minimumDaysForBaseline = "minimumDaysForBaseline"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
+        static let initialDataImportCompleted = "initialDataImportCompleted"
         static let lastCalculationTime = "lastCalculationTime"
         static let lastHRVBaselineCalculation = "lastHRVBaselineCalculation"
         static let lastRHRBaselineCalculation = "lastRHRBaselineCalculation"
+        static let lastSleepBaselineCalculation = "lastSleepBaselineCalculation"
     }
     
-    // Default values
+    // Default values - Updated for FR-2 requirements
     private enum Defaults {
         static let readinessMode = ReadinessMode.morning
-        static let baselinePeriod = BaselinePeriod.sevenDays
-        static let useRHRAdjustment = true
-        static let useSleepAdjustment = true
+        static let baselinePeriod = BaselinePeriod.sevenDays // FR-2: 7-day rolling baseline is primary requirement
+        static let useRHRAdjustment = false // Changed to false - RHR adjustment is optional
+        static let useSleepAdjustment = false // Changed to false - sleep adjustment is optional
         static let minimumDaysForBaseline = 3
         static let hasCompletedOnboarding = false
     }
@@ -102,6 +107,9 @@ class UserDefaultsManager {
     
     var useRHRAdjustment: Bool {
         get {
+            if !userDefaults.contains(key: Keys.useRHRAdjustment) {
+                return Defaults.useRHRAdjustment
+            }
             return userDefaults.bool(forKey: Keys.useRHRAdjustment)
         }
         set {
@@ -111,6 +119,9 @@ class UserDefaultsManager {
     
     var useSleepAdjustment: Bool {
         get {
+            if !userDefaults.contains(key: Keys.useSleepAdjustment) {
+                return Defaults.useSleepAdjustment
+            }
             return userDefaults.bool(forKey: Keys.useSleepAdjustment)
         }
         set {
@@ -164,6 +175,24 @@ class UserDefaultsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.lastRHRBaselineCalculation)
+        }
+    }
+    
+    var lastSleepBaselineCalculation: Date? {
+        get {
+            return userDefaults.object(forKey: Keys.lastSleepBaselineCalculation) as? Date
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.lastSleepBaselineCalculation)
+        }
+    }
+    
+    var initialDataImportCompleted: Bool {
+        get {
+            return userDefaults.bool(forKey: Keys.initialDataImportCompleted)
+        }
+        set {
+            userDefaults.set(newValue, forKey: Keys.initialDataImportCompleted)
         }
     }
 }

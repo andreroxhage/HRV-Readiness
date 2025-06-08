@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
 	<key>NSHealthShareUsageDescription</key>
-	<string>We need access to your health data to display your daily activity in the widget.</string>
+	<string>Ready needs access to your HRV, resting heart rate, and sleep data to calculate your daily readiness score. This data is processed locally and never shared.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>We need access to update your health data for accurate widget display.</string>
+	<string>Ready does not write health data, only reads existing data for readiness calculations.</string>
 </dict>
 </plist>

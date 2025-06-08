@@ -10,10 +10,6 @@ struct OnboardingView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     
     @State private var currentPage = 0
-    @State private var healthKitAuthStatus: AuthorizationStatus = .notDetermined
-    @State private var isImportingData = false
-    @State private var importProgress = 0.0
-    @State private var importStatus = "Preparing to import your health data..."
     @State private var showHealthRequiredAlert = false
     
     @State private var animateIcons = false
@@ -29,9 +25,7 @@ struct OnboardingView: View {
     private let backgroundColor = Color(UIColor.systemBackground)
     private let secondaryBackgroundColor = Color(UIColor.secondarySystemBackground)
     
-    enum AuthorizationStatus {
-        case notDetermined, authorized, denied
-    }
+
     
     var body: some View {
         ZStack {
@@ -73,7 +67,7 @@ struct OnboardingView: View {
             VStack {
                 Spacer()
                 // Hide on first and last page
-                if currentPage != 0 && !(currentPage == 6 && !isImportingData) {
+                if currentPage != 0 && currentPage != 6 {
                     pageIndicator
                         .padding(.bottom, 20)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -81,7 +75,6 @@ struct OnboardingView: View {
             }
             .ignoresSafeArea(.keyboard)
             .animation(.easeInOut(duration: 0.4), value: currentPage)
-            .animation(.easeInOut(duration: 0.4), value: isImportingData)
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
@@ -100,48 +93,8 @@ struct OnboardingView: View {
                 showPulse = true
             }
         }
-        .onChange(of: healthKitAuthStatus) { oldValue, newValue in
-            if newValue == .denied && currentPage > 5 {
-                transitionDirection = -1
-                pageTransition = .asymmetric(
-                    insertion: .move(edge: .leading).combined(with: .opacity),
-                    removal: .move(edge: .trailing).combined(with: .opacity)
-                )
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                    currentPage -= 1
-                    resetAndAnimateNewContent()
-                }
-            } else if newValue == .authorized && currentPage == 5 {
-                // Automatically advance to data import when authorized
-                transitionDirection = 1
-                pageTransition = .asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
-                )
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                    currentPage += 1
-                    resetAndAnimateNewContent()
-                    startDataImport()
-                }
-            }
-        }
-        .alert("Health Access Required", isPresented: $showHealthRequiredAlert) {
-            if healthKitAuthStatus == .denied {
-                Button("Open Settings") {
-                    openHealthSettings()
-                }
-                Button("Try Again") {
-                    requestHealthKitAuthorization()
-                }
-            } else {
-                Button("Grant Access") {
-                    requestHealthKitAuthorization()
-                }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Ready needs access to your health data to calculate readiness scores. This app cannot function without these permissions.")
-        }
+
+
     }
     
     // MARK: - Page Indicator
@@ -175,18 +128,12 @@ struct OnboardingView: View {
                 }
             }
             
-            if currentPage < 6 && (currentPage < 5 || healthKitAuthStatus == .authorized) {
+            if currentPage < 6 {
                 Button {
-                    // Special case for health permissions
-                    if currentPage == 5 && healthKitAuthStatus != .authorized {
-                        showHealthRequiredAlert = true
-                        return
-                    }
-                    
                     transitionDirection = 1
                     pageTransition = .asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .leading).combined(with: .opacity)
+                        removal: .move(edge: .trailing).combined(with: .opacity)
                     )
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                         currentPage += 1
@@ -327,28 +274,28 @@ struct OnboardingView: View {
                         scoreCategoryCard(
                             title: "Optimal (80-100)",
                             description: "Your body is well-recovered and ready for high-intensity training.",
-                            color: .green,
+                            color: ReadinessCategory.optimal.color,
                             isActive: mockReadinessScore >= 80
                         )
                         
                         scoreCategoryCard(
                             title: "Moderate (50-79)",
                             description: "Your body is moderately recovered. Consider moderate-intensity activity.",
-                            color: .yellow,
+                            color: ReadinessCategory.moderate.color,
                             isActive: mockReadinessScore >= 50 && mockReadinessScore < 80
                         )
                         
                         scoreCategoryCard(
                             title: "Low (30-49)",
                             description: "Your body shows signs of fatigue. Consider light activity or active recovery.",
-                            color: .orange,
+                            color: ReadinessCategory.low.color,
                             isActive: mockReadinessScore >= 30 && mockReadinessScore < 50
                         )
                         
                         scoreCategoryCard(
                             title: "Fatigue (0-29)",
                             description: "Your body needs rest. Focus on recovery and avoid intense training.",
-                            color: .red,
+                            color: ReadinessCategory.fatigue.color,
                             isActive: mockReadinessScore < 30
                         )
                     }
@@ -430,19 +377,19 @@ struct OnboardingView: View {
             switch currentScoreCategory {
             case 0: // Optimal
                 mockReadinessScore = 90
-                activeParticleColor = .green
+                activeParticleColor = ReadinessCategory.optimal.color
             case 1: // Moderate
                 mockReadinessScore = 65
-                activeParticleColor = .yellow
+                activeParticleColor = ReadinessCategory.moderate.color
             case 2: // Low
                 mockReadinessScore = 40
-                activeParticleColor = .orange
+                activeParticleColor = ReadinessCategory.low.color
             case 3: // Fatigue
                 mockReadinessScore = 20
-                activeParticleColor = .red
+                activeParticleColor = ReadinessCategory.fatigue.color
             default:
                 mockReadinessScore = 90
-                activeParticleColor = .green
+                activeParticleColor = ReadinessCategory.optimal.color
             }
         }
     }
@@ -769,121 +716,21 @@ struct OnboardingView: View {
                         Spacer()
                     }
                     
-                    if healthKitAuthStatus == .notDetermined {
-                        Button {
-                            requestHealthKitAuthorization()
-                        } label: {
-                            HStack {
-                                Image(systemName: "checkmark.shield.fill")
-                                    .font(.title3)
-                                    .foregroundColor(.primary)
-                                Text("Authorize Health Access")
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.primary)
-                            }
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                            .frame(height: 56)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.red, lineWidth: 2)
-                            )
-                            .cornerRadius(16)
-                            .padding(.horizontal, 16)
-                            .shadow(color: Color.red.opacity(0.3), radius: 8, x: 0, y: 4)
-                        }
+                    Text("Requesting access to your health data...")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                         .opacity(animateContent ? 1 : 0)
-                        .scaleEffect(animateContent ? 1 : 0.9)
-                    } else if healthKitAuthStatus == .denied {
-                        VStack(spacing: 16) {
-                            Text("Health access was denied")
-                                .font(.headline)
-                                .foregroundColor(.red)
-                                .opacity(animateContent ? 1 : 0)
-                            
-                            Button {
-                                requestHealthKitAuthorization()
-                            } label: {
-                                HStack {
-                                    Image(systemName: "arrow.clockwise")
-                                    Text("Try Again")
-                                }
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .frame(height: 56)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.red)
-                                .cornerRadius(16)
-                                .padding(.horizontal, 16)
-                            }
-                            .opacity(animateContent ? 1 : 0)
-                            
-                            Button {
-                                openHealthSettings()
-                            } label: {
-                                HStack {
-                                    Image(systemName: "heart.square.fill")
-                                    Text("Open Health Settings")
-                                }
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .frame(height: 56)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.green)
-                                .cornerRadius(16)
-                                .padding(.horizontal, 16)
-                            }
-                            .opacity(animateContent ? 1 : 0)
-
-                            Button {
-                                #if os(iOS)
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
-                                }
-                                #endif
-                            } label: {
-                                HStack {
-                                    Image(systemName: "gear")
-                                    Text("Open App Settings")
-                                }
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .frame(height: 56)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.orange)
-                                .cornerRadius(16)
-                                .padding(.horizontal, 16)
-                            }
-                            .opacity(animateContent ? 1 : 0)
-                        }
-                    } else if healthKitAuthStatus == .authorized {
-                        Text("Access Granted")
-                            .font(.headline)
-                            .foregroundColor(.green)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.green.opacity(0.1))
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.green, lineWidth: 1)
-                            )
-                            .opacity(animateContent ? 1 : 0)
-                            .scaleEffect(animateContent ? 1 : 0.9)
-                        
-                        Text("Preparing to import your health data...")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .opacity(animateContent ? 1 : 0)
-                    }
                     
                     Spacer().frame(height: isLandscape ? 20 : 30)
                 }
                 .padding()
             }
+        }
+        .onAppear {
+            // Automatically request HealthKit authorization when this page appears
+            requestHealthKitAuthorization()
         }
     }
     
@@ -899,26 +746,23 @@ struct OnboardingView: View {
                     
                     ZStack {
                         Circle()
-                            .fill(isImportingData ? Color.accentColor.opacity(0.2) : Color.green.opacity(0.2))
+                            .fill(Color.green.opacity(0.2))
                             .frame(width: isLandscape ? 100 : 120, height: isLandscape ? 100 : 120)
                         
-                        Image(systemName: isImportingData ? "arrow.clockwise" : "checkmark.circle.fill")
+                        Image(systemName: "checkmark.circle.fill")
                             .resizable()
                             .scaledToFit()
                             .frame(width: isLandscape ? 65 : 80, height: isLandscape ? 65 : 80)
-                            .foregroundColor(isImportingData ? Color.accentColor : .green)
-                            .rotationEffect(.degrees(isImportingData ? 360 : 0))
-                            .animation(isImportingData ? Animation.linear(duration: 2).repeatForever(autoreverses: false) : .default, value: isImportingData)
+                            .foregroundColor(.green)
                     }
                     
-                    Text(isImportingData ? "Importing Your Data" : "Ready to Go!")
+                    Text("Ready to Go!")
                         .font(.system(size: isLandscape ? 28 : 32, weight: .bold, design: .rounded))
                         .opacity(animateContent ? 1 : 0)
                         .offset(y: animateContent ? 0 : 20)
                     
-                    // Fixed height container for status text to prevent layout shifts
                     VStack {
-                        Text(importStatus)
+                        Text("Your health data access has been configured. Ready is now set up and ready to help you track your recovery and readiness.")
                             .font(.headline)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
@@ -927,63 +771,44 @@ struct OnboardingView: View {
                     .frame(height: 60)
                     .padding(.bottom, 8)
                     
-                    if isImportingData {
-                        VStack(spacing: 10) {
-                            // Smoother progress bar with animation
-                            ProgressView(value: importProgress)
-                                .progressViewStyle(LinearProgressViewStyle(tint: Color.accentColor))
-                                .padding(.horizontal)
-                                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: importProgress)
-                            
-                            // Animated percentage text
-                            AnimatedPercentage(value: importProgress)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.top, 10)
-                        .opacity(animateContent ? 1 : 0)
-                    }
-                    
                     if !isLandscape {
                         Spacer()
                     }
                     
-                    if !isImportingData {
-                        VStack {
-                            Spacer(minLength: 60) // Add extra space above button
-                            
-                            Button {
-                                withAnimation(.easeInOut(duration: 0.5)) {
-                                    hasCompletedOnboarding = true
-                                }
-                            } label: {
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.title3)
-                                    Text("Start Using Ready")
-                                        .fontWeight(.semibold)
-                                }
-                                .foregroundColor(.white)
-                                .frame(height: 56)
-                                .frame(maxWidth: .infinity)
-                                .background(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: [Color.accentColor, Color.accentColor.opacity(0.8)]),
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .cornerRadius(16)
-                                .padding(.horizontal, 16)
-                                .shadow(color: Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                    VStack {
+                        Spacer(minLength: 60)
+                        
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                hasCompletedOnboarding = true
                             }
-                            .opacity(animateContent ? 1 : 0)
-                            .scaleEffect(animateContent ? 1 : 0.9)
+                        } label: {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
+                                Text("Start Using Ready")
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.white)
+                            .frame(height: 56)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [Color.accentColor, Color.accentColor.opacity(0.8)]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(16)
+                            .padding(.horizontal, 16)
+                            .shadow(color: Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
                         }
-                        .padding(.bottom, 40) // Increased bottom padding
+                        .opacity(animateContent ? 1 : 0)
+                        .scaleEffect(animateContent ? 1 : 0.9)
                     }
+                    .padding(.bottom, 40)
                     
-                    Spacer().frame(height: isLandscape ? 30 : 60) // Increased spacer height
+                    Spacer().frame(height: isLandscape ? 30 : 60)
                 }
                 .padding()
             }
@@ -1150,215 +975,25 @@ struct OnboardingView: View {
     }
     
     private func requestHealthKitAuthorization() {
+        // Actually request the permission but don't wait for result
         Task {
             do {
                 let healthKitManager = HealthKitManager.shared
                 try await healthKitManager.requestAuthorization()
-                
-                await MainActor.run {
-                    healthKitAuthStatus = .authorized
-                }
             } catch {
-                await MainActor.run {
-                    healthKitAuthStatus = .denied
-                    importStatus = "Health data access was denied. Please authorize in Settings to use this app."
-                    showHealthRequiredAlert = true
-                }
-            }
-        }
-    }
-    
-    private func openHealthSettings() {
-        #if os(iOS)
-        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(settingsUrl)
-        }
-        #endif
-    }
-    
-    private func startDataImport() {
-        isImportingData = true
-        importProgress = 0.0
-        importStatus = "Preparing to import your health data..."
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            withAnimation(.spring()) {
-                animateIcons = true
-                animateContent = true
+                // Silently handle any errors - we're not checking the result anyway
             }
         }
         
-        Task {
-            do {
-                // Initial progress - simulates preparation (20% of total)
-                for i in 1...5 {
-                    try await Task.sleep(nanoseconds: 50_000_000) // 50ms
-                    await MainActor.run {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                            importProgress = Double(i) / 25.0 // Progresses to 20%
-                        }
-                        
-                        if i == 3 {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                importStatus = "Scanning health data history..."
-                            }
-                        }
-                    }
-                }
-                
-                // Set status for importing HRV data
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        importStatus = "Importing heart rate variability data..."
-                    }
-                }
-                
-                // Track progress for historical data import (60% of total)
-                let startProgress = importProgress // Should be 0.2
-                let importWeight = 0.6 // 60% of total progress
-                
-                // Create an observed progress tracker
-                let progressTracker = ProgressTracker(startProgress: startProgress, weight: importWeight)
-                
-                // Start the actual import task using the ViewModel
-                let importTask = Task {
-                    // Use the actual ViewModel method for recalculating past scores
-                    await viewModel.recalculateAllPastScores(days: 30)
-                }
-                
-                // While the calculation is happening, update progress at regular intervals
-                let updateInterval = 0.05 // 50ms
-                var elapsed = 0.0
-                let expectedDuration = 1.5 // Expected duration in seconds
-                
-                while !importTask.isCancelled && !Task.isCancelled {
-                    try await Task.sleep(nanoseconds: UInt64(updateInterval * 1_000_000_000))
-                    elapsed += updateInterval
-                    
-                    // Calculate progress as a percentage of expected duration
-                    let progressEstimate = min(elapsed / expectedDuration, 1.0)
-                    
-                    await MainActor.run {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                            importProgress = progressTracker.calculateProgress(progressEstimate)
-                        }
-                        
-                        // Update status messages at key points
-                        if elapsed > 0.3 && importStatus != "Analyzing sleep patterns..." {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                importStatus = "Analyzing sleep patterns..."
-                            }
-                        } else if elapsed > 0.8 && importStatus != "Processing baseline metrics..." {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                importStatus = "Processing baseline metrics..."
-                            }
-                        }
-                    }
-                    
-                    // Break if we've reached our estimated completion time
-                    if progressEstimate >= 1.0 {
-                        break
-                    }
-                }
-                
-                // Wait for the task to complete (in case it finishes early)
-                try await importTask.value
-                
-                // Set status for calculating today's readiness score
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        importStatus = "Calculating your personal readiness score..."
-                        importProgress = 0.8 // Ensure we're at 80% progress
-                    }
-                }
-                
-                // Calculate today's readiness score (10% of total)
-                let todayScoreTask = Task {
-                    // Use the correct method from the ViewModel
-                    viewModel.recalculateReadiness()
-                }
-                
-                // Simulate progress for this phase
-                for i in 1...5 {
-                    try await Task.sleep(nanoseconds: 40_000_000) // 40ms
-                    await MainActor.run {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                            importProgress = 0.8 + (Double(i) / 50.0) // Progress from 80% to 90%
-                        }
-                    }
-                }
-                
-                await todayScoreTask.value
-                
-                // Final setup phase (last 10%)
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        importStatus = "Finalizing your dashboard..."
-                    }
-                }
-                
-                // Complete progress to 100%
-                for i in 1...5 {
-                    try await Task.sleep(nanoseconds: 30_000_000) // 30ms
-                    await MainActor.run {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                            importProgress = 0.9 + (Double(i) / 50.0) // Progress from 90% to 100%
-                        }
-                    }
-                }
-                
-                // Complete the import
-                await MainActor.run {
-                    withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
-                        importProgress = 1.0
-                    }
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        isImportingData = false
-                        importStatus = "Your readiness profile is ready!"
-                        
-                        animateIcons = false
-                        animateContent = false
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                animateIcons = true
-                                animateContent = true
-                            }
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    isImportingData = false
-                    importStatus = "There was an issue importing all your health data. We'll continue to collect data and improve your results over time."
-                    
-                    animateIcons = false
-                    animateContent = false
-                    
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation(.spring()) {
-                            animateIcons = true
-                            animateContent = true
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    // Helper class to track and calculate progress
-    class ProgressTracker {
-        let startProgress: Double
-        let weight: Double
-        
-        init(startProgress: Double, weight: Double) {
-            self.startProgress = startProgress
-            self.weight = weight
-        }
-        
-        func calculateProgress(_ currentPercentage: Double) -> Double {
-            return startProgress + (currentPercentage * weight)
+        // Immediately move to next page regardless of permission result
+        transitionDirection = 1
+        pageTransition = .asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        )
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            currentPage += 1
+            resetAndAnimateNewContent()
         }
     }
     

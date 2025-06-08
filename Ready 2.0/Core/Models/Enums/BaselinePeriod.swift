@@ -20,9 +20,9 @@ enum BaselinePeriod: Int, CaseIterable {
     var explanation: String {
         switch self {
         case .sevenDays:
-            return "Uses the last 7 days of data to establish your baseline. Responds quickly to recent changes but may be more volatile."
+            return "Uses the last 7 days of data to establish your baseline. Recommended default per research-backed algorithm. Responds quickly to recent changes."
         case .fourteenDays:
-            return "Uses the last 14 days of data to establish your baseline. Balanced approach between responsiveness and stability."
+            return "Uses the last 14 days of data to establish your baseline. Provides more stability but slower response to changes."
         case .thirtyDays:
             return "Uses the last 30 days of data to establish your baseline. Most stable but takes longer to adapt to changes in your fitness."
         }

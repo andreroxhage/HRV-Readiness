@@ -63,26 +63,26 @@ struct ScoreInfoOverlay: View {
                         
                         ScoreCategoryRow(
                             title: "Optimal (80-100)",
-                            description: "Your body is well-recovered and ready for high-intensity training.",
-                            color: .green
+                            description: "Fully Recovered – Ready for high-intensity training and maximum effort.",
+                            color: ReadinessCategory.optimal.color
                         )
                         
                         ScoreCategoryRow(
                             title: "Moderate (50-79)",
-                            description: "Your body is moderately recovered. Consider moderate-intensity training.",
-                            color: .yellow
+                            description: "Partial Recovery – Moderate training recommended. Avoid high-intensity sessions.",
+                            color: ReadinessCategory.moderate.color
                         )
                         
                         ScoreCategoryRow(
                             title: "Low (30-49)",
-                            description: "Your body shows signs of fatigue. Consider light activity or active recovery.",
-                            color: .orange
+                            description: "Low Recovery – Light training only. Focus on active recovery and mobility.",
+                            color: ReadinessCategory.low.color
                         )
                         
                         ScoreCategoryRow(
                             title: "Fatigue (0-29)",
-                            description: "Your body needs rest. Focus on recovery and avoid intense training.",
-                            color: .red
+                            description: "Overtrained – Full recovery needed. Rest is essential, avoid all intense training.",
+                            color: ReadinessCategory.fatigue.color
                         )
                     }
                     
@@ -99,21 +99,23 @@ struct ScoreInfoOverlay: View {
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Within ±3% of baseline → Optimal (80-100)")
-                            Text("3-7% lower → Moderate (50-79)")
-                            Text("7-10% lower → Low (30-49)")
-                            Text(">10% lower → Fatigue (0-29)")
+                            Text("3-7% below baseline → Moderate (50-79)")
+                            Text("7-10% below baseline → Low (30-49)")
+                            Text(">10% below baseline → Fatigue (0-29)")
+                            Text(">10% above baseline → Supercompensation (90-100)")
+                                .foregroundStyle(viewModel.hrvDeviation > 10 ? viewModel.hrvDeviationColor : .secondary)
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         
-                        Text("Additional adjustments are made based on:")
+                        Text("Adjustment factors (applied when enabled):")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .padding(.top, 4)
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Elevated resting heart rate (>5 bpm above baseline): -10%")
-                            Text("Insufficient sleep (<6 hours): -15%")
+                            Text("Poor sleep quality (<6 hours): -15%")
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

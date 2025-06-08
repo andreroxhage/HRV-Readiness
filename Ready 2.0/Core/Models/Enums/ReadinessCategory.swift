@@ -36,10 +36,10 @@ enum ReadinessCategory: String, CaseIterable {
     var description: String {
         switch self {
         case .unknown: return "Not enough data to determine readiness"
-        case .optimal: return "Your body is well-recovered and ready for high-intensity training."
-        case .moderate: return "Your body is moderately recovered. Consider moderate-intensity training."
-        case .low: return "Your body shows signs of fatigue. Consider light activity or active recovery."
-        case .fatigue: return "Your body needs rest. Focus on recovery and avoid intense training."
+        case .optimal: return "Fully Recovered – Ready for high-intensity training and maximum effort."  // FR-4: Fully Recovered
+        case .moderate: return "Partial Recovery – Moderate training recommended. Avoid high-intensity sessions."  // FR-4: Partial Recovery – Moderate Training Recommended
+        case .low: return "Low Recovery – Light training only. Focus on active recovery and mobility."  // FR-4: Low Recovery – Light Training Only
+        case .fatigue: return "Overtrained – Full recovery needed. Rest is essential, avoid all intense training."  // FR-4: Overtrained – Full Recovery Needed
         }
     }
     

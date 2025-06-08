@@ -25,6 +25,10 @@ struct ContentView: View {
     @State private var isLoading: Bool = false
 
     var body: some View {
+        // Show initial setup view if needed
+        if viewModel.isPerformingInitialSetup {
+            InitialSetupView(viewModel: viewModel)
+        } else {
         NavigationView {
             ZStack {
                 Color.clear
@@ -110,7 +114,7 @@ struct ContentView: View {
                                     Text("RHR Adjustment")
                                     Spacer()
                                     Text("\(String(format: "%+.0f", viewModel.rhrAdjustment))")
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(viewModel.rhrAdjustment < 0 ? .red : .green)
                                         .bold()
                                 }
                             }
@@ -120,7 +124,7 @@ struct ContentView: View {
                                     Text("Sleep Adjustment")
                                     Spacer()
                                     Text("\(String(format: "%+.0f", viewModel.sleepAdjustment))")
-                                        .foregroundStyle(.red)
+                                        .foregroundStyle(viewModel.sleepAdjustment < 0 ? .red : .green)
                                         .bold()
                                 }
                             }
@@ -160,7 +164,7 @@ struct ContentView: View {
                                 Text("Deviation")
                                 Spacer()
                                 Text(String(format: "%.1f%%", viewModel.hrvDeviation))
-                                    .foregroundStyle(getHRVDeviationColor(viewModel.hrvDeviation))
+                                    .foregroundStyle(viewModel.hrvDeviationColor)
                             }
                             
                             UnderstandingScore(viewModel: viewModel)
@@ -225,7 +229,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .background(getGradientBackgroundColor(
+            .background(viewModel.getBackgroundGradient(
                 for: viewModel.readinessScore,
                 isDarkMode: appearanceViewModel.colorScheme == .dark
             )
@@ -233,11 +237,20 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearanceViewModel.colorScheme)
         .onAppear {
+            print("🔄 CONTENT: ContentView appeared after onboarding completion")
             Task { @MainActor in
+                // First check if we need to perform initial setup
+                await viewModel.checkAndPerformInitialSetup()
+                
+                // Then sync @AppStorage with viewModel's current mode on app launch
+                if readinessMode != viewModel.readinessMode.rawValue {
+                    readinessMode = viewModel.readinessMode.rawValue
+                }
                 previousMode = readinessMode
                 fetchHealthData()
             }
         }
+        } // Close the else clause
     }
     
     private func refreshData(forceRecalculation: Bool = false) {
@@ -248,103 +261,65 @@ struct ContentView: View {
         Task { @MainActor in
             isLoading = true
             
-            do {
-                // Fetch health data using the ViewModel's methods
-                
-                // Fetch resting heart rate
+            // Debug current settings from multiple sources
+            print("🔄 CONTENT: Starting health data fetch")
+            print("⚙️ CONTENT: ViewModel settings - RHR: \(viewModel.useRHRAdjustment), Sleep: \(viewModel.useSleepAdjustment)")
+            print("⚙️ CONTENT: UserDefaults direct - RHR: \(UserDefaults.standard.bool(forKey: "useRHRAdjustment")), Sleep: \(UserDefaults.standard.bool(forKey: "useSleepAdjustment"))")
+            print("⚙️ CONTENT: AppStorage values - RHR: \(UserDefaults.standard.object(forKey: "useRHRAdjustment") ?? "not set"), Sleep: \(UserDefaults.standard.object(forKey: "useSleepAdjustment") ?? "not set")")
+            
+            // Fetch resting heart rate only if RHR adjustment is enabled
+            if viewModel.useRHRAdjustment {
+                print("💓 CONTENT: RHR adjustment ENABLED - attempting to fetch RHR data")
                 do {
                     restingHeartRate = try await viewModel.fetchRestingHeartRate()
+                    print("✅ CONTENT: Successfully fetched RHR: \(restingHeartRate) bpm")
                 } catch {
-                    print("Resting heart rate error: \(error)")
+                    print("❌ CONTENT: Resting heart rate error: \(error)")
+                    restingHeartRate = 0 // Set default when error occurs
+                    print("⚠️ CONTENT: Using default RHR value: 0 due to error")
                 }
-                
-                // Fetch sleep data
+            } else {
+                restingHeartRate = 0 // Set default when RHR adjustment is disabled
+                print("💓 CONTENT: RHR adjustment DISABLED, using default value: 0")
+            }
+            
+            // Fetch sleep data only if sleep adjustment is enabled
+            if viewModel.useSleepAdjustment {
                 do {
                     let sleepData = try await viewModel.fetchSleepData()
                     sleepHours = sleepData.hours
                     sleepQuality = sleepData.quality
+                    print("😴 CONTENT: Fetched sleep: \(sleepHours)h, quality: \(sleepQuality)")
                 } catch {
-                    print("Sleep data error: \(error)")
+                    print("⚠️ CONTENT: Sleep data error: \(error)")
+                    sleepHours = 0
+                    sleepQuality = 0
                 }
+            } else {
+                // Set default values when sleep adjustment is disabled
+                sleepHours = 0
+                sleepQuality = 0
+                print("😴 CONTENT: Sleep adjustment disabled, using default values: 0h")
+            }
 
-                // Check if mode has changed since last refresh
-                let modeChanged = previousMode != readinessMode
-                if modeChanged {
-                    print("DEBUG: Mode changed from \(previousMode) to \(readinessMode)")
-                    await MainActor.run {
-                        previousMode = readinessMode
-                    }
-                    
-                    // Update the viewModel's readiness mode
-                    viewModel.updateReadinessMode(readinessMode)
-                }
-                
-                // Calculate the readiness score using the health metrics
-                viewModel.calculateReadiness(
-                    restingHeartRate: restingHeartRate,
-                    sleepHours: sleepHours,
-                    sleepQuality: sleepQuality
-                )
-                
-                await MainActor.run {
-                    isLoading = false
-                }
-            } catch {
-                print("Error fetching health data: \(error)")
-                await MainActor.run {
-                    isLoading = false
-                }
+            // Calculate the readiness score using the health metrics
+            print("🎯 CONTENT: About to call viewModel.calculateReadiness with final values:")
+            print("   - restingHeartRate: \(restingHeartRate)")
+            print("   - sleepHours: \(sleepHours)")
+            print("   - sleepQuality: \(sleepQuality)")
+            
+            viewModel.calculateReadiness(
+                restingHeartRate: restingHeartRate,
+                sleepHours: sleepHours,
+                sleepQuality: sleepQuality
+            )
+            
+            await MainActor.run {
+                isLoading = false
             }
         }
     }
-    
-    // Helper functions for UI
-    private func getHRVDeviationColor(_ deviation: Double) -> Color {
-        if deviation >= 0 {
-            return .green
-        } else if deviation >= -5 {
-            return .yellow
-        } else if deviation >= -10 {
-            return .orange
-        } else {
-            return .red
-        }
-    }
-    
-    private func getGradientBackgroundColor(for score: Double, isDarkMode: Bool) -> some View {
-        let category = ReadinessCategory.forScore(score)
-        
-        let gradientColors: [Color]
-        
-        switch category {
-        case .optimal:
-            gradientColors = isDarkMode ? 
-                [Color.green.opacity(0.1), Color.green.opacity(0.05)] :
-                [Color.green.opacity(0.1), Color.green.opacity(0.05)]
-        case .moderate:
-            gradientColors = isDarkMode ?
-                [Color.yellow.opacity(0.1), Color.yellow.opacity(0.05)] :
-                [Color.yellow.opacity(0.1), Color.yellow.opacity(0.05)]
-        case .low:
-            gradientColors = isDarkMode ?
-                [Color.orange.opacity(0.1), Color.orange.opacity(0.05)] :
-                [Color.orange.opacity(0.1), Color.orange.opacity(0.05)]
-        case .fatigue:
-            gradientColors = isDarkMode ?
-                [Color.red.opacity(0.1), Color.red.opacity(0.05)] :
-                [Color.red.opacity(0.1), Color.red.opacity(0.05)]
-        default:
-            gradientColors = isDarkMode ?
-                [Color.gray.opacity(0.1), Color.gray.opacity(0.05)] :
-                [Color.gray.opacity(0.1), Color.gray.opacity(0.05)]
-        }
-        
-        return LinearGradient(
-            gradient: Gradient(colors: gradientColors),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
+
 }
 
 struct ContentView_Previews: PreviewProvider {

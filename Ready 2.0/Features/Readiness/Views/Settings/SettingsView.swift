@@ -2,9 +2,9 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("readinessMode") private var readinessMode: String = "morning"
-    @AppStorage("baselinePeriod") private var baselinePeriod: Int = 7
-    @AppStorage("useRHRAdjustment") private var useRHRAdjustment: Bool = true
-    @AppStorage("useSleepAdjustment") private var useSleepAdjustment: Bool = true
+    @AppStorage("baselinePeriod") private var baselinePeriod: Int = 7 // FR-2: 7-day rolling baseline default
+    @AppStorage("useRHRAdjustment") private var useRHRAdjustment: Bool = false
+    @AppStorage("useSleepAdjustment") private var useSleepAdjustment: Bool = false
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ReadinessViewModel
     @State private var showHealthKitAuth = false
@@ -61,6 +61,7 @@ struct SettingsView: View {
                             Text("30 days").tag(30)
                         }
                         .pickerStyle(.segmented)
+                        .disabled(viewModel.isLoading)
                         .onChange(of: baselinePeriod) { oldValue, newValue in
                             viewModel.updateBaselinePeriod(newValue)
                         }
@@ -78,12 +79,13 @@ struct SettingsView: View {
                 } header: {
                     Text("Baseline Calculation")
                 } footer: {
-                    Text("The baseline is calculated using your HRV data from the selected period. A longer period gives more consistent results but requires more data.")
+                    Text("The baseline is calculated using your HRV data from the selected period. 7-day baseline is recommended as the research-backed default. Longer periods provide more stability but respond slower to changes.")
                 }
                 
                 // Score Adjustment Settings
                 Section {
                     Toggle("Resting Heart Rate Adjustment", isOn: $useRHRAdjustment)
+                        .disabled(viewModel.isLoading)
                         .onChange(of: useRHRAdjustment) { oldValue, newValue in
                             viewModel.updateRHRAdjustment(newValue)
                         }
@@ -96,6 +98,7 @@ struct SettingsView: View {
                     .padding(.leading)
                     
                     Toggle("Sleep Duration Adjustment", isOn: $useSleepAdjustment)
+                        .disabled(viewModel.isLoading)
                         .onChange(of: useSleepAdjustment) { oldValue, newValue in
                             viewModel.updateSleepAdjustment(newValue)
                         }
@@ -131,14 +134,25 @@ struct SettingsView: View {
                     Text("These factors can further adjust your readiness score based on other metrics. Disable them for a score based solely on HRV.")
                 }
                 
-                // Last calculation time
+                // Calculation status
                 Section {
-                    HStack {
-                        Image(systemName: "clock")
-                            .foregroundStyle(.gray)
-                        Text(viewModel.lastCalculationDescription)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    if viewModel.isLoading {
+                        HStack {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .accentColor))
+                                .scaleEffect(0.8)
+                            Text("Recalculating readiness scores...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundStyle(.gray)
+                            Text(viewModel.lastCalculationDescription)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 
@@ -228,6 +242,22 @@ struct SettingsView: View {
                     }
                 } header: {
                     Text("About")
+                }
+                
+                // Debug Data Section
+                Section {
+                    NavigationLink(destination: DebugDataView(viewModel: viewModel)) {
+                        HStack {
+                            Image(systemName: "chart.bar.doc.horizontal")
+                                .foregroundStyle(.blue)
+                            Text("Debug Data")
+                            Spacer()
+                        }
+                    }
+                } header: {
+                    Text("Debug Information")
+                } footer: {
+                    Text("View current metric values, baselines, and historical data for troubleshooting.")
                 }
             }
             .navigationTitle("Settings")
