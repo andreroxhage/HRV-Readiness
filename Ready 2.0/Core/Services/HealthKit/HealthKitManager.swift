@@ -398,6 +398,73 @@ class HealthKitManager {
         return results.reversed() // Return in chronological order
     }
     
+    // MARK: - Background Delivery
+    
+    func enableBackgroundDelivery() async throws {
+        print("🔄 HEALTHKIT: Enabling background delivery for health data types")
+        
+        guard let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
+              let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate),
+              let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) else {
+            throw HealthKitError.dataTypeNotAvailable
+        }
+        
+        // Enable background delivery for each data type
+        try await enableBackgroundDelivery(for: hrvType, frequency: .daily, identifier: "HRV")
+        try await enableBackgroundDelivery(for: rhrType, frequency: .daily, identifier: "RHR")
+        try await enableBackgroundDelivery(for: sleepType, frequency: .daily, identifier: "Sleep")
+        
+        print("✅ HEALTHKIT: Background delivery enabled for all data types")
+    }
+    
+    private func enableBackgroundDelivery(for type: HKObjectType, frequency: HKUpdateFrequency, identifier: String) async throws {
+        print("🔄 HEALTHKIT: Enabling background delivery for \(identifier)")
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            healthStore.enableBackgroundDelivery(for: type, frequency: frequency) { success, error in
+                if let error = error {
+                    print("❌ HEALTHKIT: Failed to enable background delivery for \(identifier): \(error)")
+                    continuation.resume(throwing: error)
+                } else {
+                    print("✅ HEALTHKIT: Successfully enabled background delivery for \(identifier)")
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+    
+    func disableBackgroundDelivery() async throws {
+        print("🔄 HEALTHKIT: Disabling background delivery for health data types")
+        
+        guard let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN),
+              let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate),
+              let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) else {
+            throw HealthKitError.dataTypeNotAvailable
+        }
+        
+        try await disableBackgroundDelivery(for: hrvType, identifier: "HRV")
+        try await disableBackgroundDelivery(for: rhrType, identifier: "RHR")
+        try await disableBackgroundDelivery(for: sleepType, identifier: "Sleep")
+        
+        print("✅ HEALTHKIT: Background delivery disabled for all data types")
+    }
+    
+    private func disableBackgroundDelivery(for type: HKObjectType, identifier: String) async throws {
+        print("🔄 HEALTHKIT: Disabling background delivery for \(identifier)")
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            healthStore.disableBackgroundDelivery(for: type) { success, error in
+                if let error = error {
+                    print("❌ HEALTHKIT: Failed to disable background delivery for \(identifier): \(error)")
+                    continuation.resume(throwing: error)
+                } else {
+                    print("✅ HEALTHKIT: Successfully disabled background delivery for \(identifier)")
+                    continuation.resume(returning: ())
+                }
+            }
+        }
+    }
+    
     // MARK: - Widget Data Sharing
     
     var sharedDefaults: UserDefaults? {

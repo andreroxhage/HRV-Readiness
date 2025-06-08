@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 
 // Import the enums needed for defaults
 // These should be available since they're in the same module
@@ -194,6 +195,65 @@ class UserDefaultsManager {
         set {
             userDefaults.set(newValue, forKey: Keys.initialDataImportCompleted)
         }
+    }
+    
+    // MARK: - Widget Data Management
+    
+    func updateWidgetData(score: Double, category: ReadinessCategory, timestamp: Date) {
+        print("🔄 WIDGET: Updating widget data - Score: \(score), Category: \(category.rawValue)")
+        
+        // Update main UserDefaults
+        userDefaults.set(score, forKey: "currentReadinessScore")
+        userDefaults.set(category.rawValue, forKey: "currentReadinessCategory")
+        userDefaults.set(timestamp, forKey: "currentReadinessTimestamp")
+        
+        // Update app group UserDefaults for widget access
+        appGroupDefaults?.set(score, forKey: "currentReadinessScore")
+        appGroupDefaults?.set(category.rawValue, forKey: "currentReadinessCategory")
+        appGroupDefaults?.set(timestamp, forKey: "currentReadinessTimestamp")
+        appGroupDefaults?.set(category.emoji, forKey: "currentReadinessEmoji")
+        appGroupDefaults?.set(category.description, forKey: "currentReadinessDescription")
+        
+        // Additional widget display data
+        let colorData = getWidgetColorData(for: category)
+        appGroupDefaults?.set(colorData.red, forKey: "widgetColorRed")
+        appGroupDefaults?.set(colorData.green, forKey: "widgetColorGreen")
+        appGroupDefaults?.set(colorData.blue, forKey: "widgetColorBlue")
+        
+        // Force widget timeline refresh
+        WidgetCenter.shared.reloadAllTimelines()
+        
+        print("✅ WIDGET: Widget data updated and timeline refreshed")
+    }
+    
+    private func getWidgetColorData(for category: ReadinessCategory) -> (red: Double, green: Double, blue: Double) {
+        switch category {
+        case .optimal:
+            return (red: 0.0, green: 0.8, blue: 0.0) // Green
+        case .moderate:
+            return (red: 1.0, green: 1.0, blue: 0.0) // Yellow
+        case .low:
+            return (red: 1.0, green: 0.5, blue: 0.0) // Orange
+        case .fatigue:
+            return (red: 1.0, green: 0.0, blue: 0.0) // Red
+        case .unknown:
+            return (red: 0.5, green: 0.5, blue: 0.5) // Gray
+        }
+    }
+    
+    func getWidgetData() -> (score: Double, category: String, timestamp: Date?, emoji: String, description: String)? {
+        guard let appGroupDefaults = appGroupDefaults else {
+            print("⚠️ WIDGET: App group defaults not available")
+            return nil
+        }
+        
+        let score = appGroupDefaults.double(forKey: "currentReadinessScore")
+        let categoryString = appGroupDefaults.string(forKey: "currentReadinessCategory") ?? "Unknown"
+        let timestamp = appGroupDefaults.object(forKey: "currentReadinessTimestamp") as? Date
+        let emoji = appGroupDefaults.string(forKey: "currentReadinessEmoji") ?? "❓"
+        let description = appGroupDefaults.string(forKey: "currentReadinessDescription") ?? "No data available"
+        
+        return (score: score, category: categoryString, timestamp: timestamp, emoji: emoji, description: description)
     }
 }
 

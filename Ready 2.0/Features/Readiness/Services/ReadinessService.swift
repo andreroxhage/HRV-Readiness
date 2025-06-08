@@ -348,6 +348,13 @@ class ReadinessService {
         // Save the calculation timestamp
         userDefaultsManager.lastCalculationTime = Date()
         
+        // Update widget data automatically after calculation
+        userDefaultsManager.updateWidgetData(
+            score: finalScore,
+            category: category,
+            timestamp: Date()
+        )
+        
         return (finalScore, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment)
     }
     
@@ -480,7 +487,7 @@ class ReadinessService {
     
     func recalculateAllReadinessScores() async throws {
         // Get all health metrics that have some data
-        let allMetrics = storageService.getHealthMetricsForPastDays(365) // Get up to 1 year
+        let allMetrics = storageService.getHealthMetricsForPastDays(90) // Get up to 1 year
         
         for metrics in allMetrics {
             guard let date = metrics.date else { continue }
@@ -493,6 +500,110 @@ class ReadinessService {
                     // Continue with other dates if one fails
                     continue
                 }
+            }
+        }
+    }
+    
+    // MARK: - Historical Data Import Methods
+    
+    func bulkImportHistoricalData(days: Int = 90, progressCallback: @escaping (Double, String) -> Void) async throws -> Int {
+        print("📥 READINESS: Starting bulk historical data import for \(days) days")
+        
+        progressCallback(0.0, "Fetching historical health data...")
+        
+        // Fetch historical data from HealthKit
+        let historicalData = try await healthKitManager.importHistoricalData(
+            days: days
+        ) { progress, status in
+            progressCallback(progress * 0.7, status) // Use first 70% for data fetching
+        }
+        
+        progressCallback(0.7, "Processing and saving historical data...")
+        
+        var savedDays = 0
+        let totalDays = historicalData.count
+        
+        for (index, dayData) in historicalData.enumerated() {
+            // Only save if we have at least HRV data
+            if let hrv = dayData.hrv, hrv >= 10 {
+                let rhr = dayData.rhr ?? 0
+                let sleepHours = dayData.sleep?.hours ?? 0
+                let sleepQuality = dayData.sleep?.quality ?? 0
+                
+                // Save the health metrics
+                _ = storageService.saveHealthMetrics(
+                    date: dayData.date,
+                    hrv: hrv,
+                    restingHeartRate: rhr,
+                    sleepHours: sleepHours,
+                    sleepQuality: sleepQuality
+                )
+                savedDays += 1
+            }
+            
+            // Update progress
+            let progress = 0.7 + (Double(index) / Double(totalDays)) * 0.2
+            progressCallback(progress, "Processed \(index + 1) of \(totalDays) days")
+        }
+        
+        progressCallback(0.9, "Calculating readiness scores...")
+        
+        // Now calculate readiness scores for all valid days
+        let calculatedScores = try await recalculateHistoricalScores(limitDays: days)
+        
+        progressCallback(1.0, "Historical import complete!")
+        
+        print("📥 READINESS: Historical import completed - Saved \(savedDays) days, calculated \(calculatedScores) scores")
+        return savedDays
+    }
+    
+    func recalculateHistoricalScores(limitDays: Int = 90) async throws -> Int {
+        print("🔄 READINESS: Recalculating historical readiness scores")
+        
+        // Get all health metrics that have valid HRV data
+        let allMetrics = storageService.getHealthMetricsForPastDays(limitDays)
+            .filter { $0.hasValidHRV }
+            .sorted { ($0.date ?? Date.distantPast) < ($1.date ?? Date.distantPast) }
+        
+        var calculatedScores = 0
+        
+        for metrics in allMetrics {
+            guard let date = metrics.date else { continue }
+            
+            do {
+                _ = try await recalculateReadinessForDate(date)
+                calculatedScores += 1
+            } catch {
+                // Continue with other dates if one fails
+                print("⚠️ READINESS: Failed to calculate score for \(date): \(error)")
+                continue
+            }
+        }
+        
+        print("✅ READINESS: Recalculated \(calculatedScores) historical scores")
+        return calculatedScores
+    }
+    
+    func handleSettingsChange(changeType: String) async {
+        print("⚙️ READINESS: Handling settings change: \(changeType)")
+        
+        // Recalculate today's score immediately
+        do {
+            _ = try await recalculateTodaysReadiness()
+            print("✅ READINESS: Today's score recalculated after \(changeType)")
+        } catch {
+            print("⚠️ READINESS: Failed to recalculate today's score: \(error)")
+        }
+        
+        // Schedule historical recalculation (debounced)
+        Task {
+            try await Task.sleep(nanoseconds: 2_000_000_000) // 2 second delay
+            
+            do {
+                _ = try await recalculateHistoricalScores(limitDays: 90)
+                print("✅ READINESS: Historical scores recalculated after \(changeType)")
+            } catch {
+                print("⚠️ READINESS: Failed to recalculate historical scores: \(error)")
             }
         }
     }

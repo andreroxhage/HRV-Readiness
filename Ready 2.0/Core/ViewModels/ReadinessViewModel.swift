@@ -26,6 +26,10 @@ class ReadinessViewModel: ObservableObject {
     @Published var error: ReadinessError?
     @Published var pastScores: [ReadinessScore] = []
     
+    // Enhanced error handling state - leveraging ReadinessError enum
+    @Published var showPartialDataWarning: Bool = false
+    @Published var canUsePartialData: Bool = false
+    
     // Initial setup state
     @Published var isPerformingInitialSetup: Bool = false
     @Published var initialSetupProgress: Double = 0.0
@@ -683,6 +687,161 @@ class ReadinessViewModel: ObservableObject {
             return .black
         case .low, .fatigue, .unknown:
             return .white
+        }
+    }
+    
+    // MARK: - Enhanced Error Handling (Using ReadinessError enum properties)
+    
+    private func handleReadinessError(_ error: ReadinessError) {
+        self.error = error
+        
+        // Reset error state flags
+        self.showPartialDataWarning = false
+        self.canUsePartialData = false
+        
+        // Use ReadinessError's built-in logic instead of duplicating
+        if error.shouldDisplay {
+            switch error {
+            case .insufficientData(_, let availableMetrics):
+                if !availableMetrics.isEmpty {
+                    self.showPartialDataWarning = true
+                    self.canUsePartialData = true
+                }
+                
+            case .historicalDataIncomplete(_, _, let partialResult):
+                if partialResult {
+                    self.showPartialDataWarning = true
+                    self.canUsePartialData = true
+                }
+                
+            default:
+                break
+            }
+        }
+        
+        print("🔧 VIEWMODEL: Error handled - \(error.errorDescription ?? "Unknown error")")
+        if let suggestion = error.recoverySuggestion {
+            print("💡 VIEWMODEL: Recovery suggestion - \(suggestion)")
+        }
+    }
+    
+    func attemptErrorRecovery() async {
+        guard let currentError = error else { return }
+        
+        print("🔧 VIEWMODEL: Attempting error recovery for: \(currentError)")
+        
+        // Use ReadinessError's built-in recovery logic
+        if let suggestion = currentError.recoverySuggestion {
+            print("💡 VIEWMODEL: Following recovery suggestion: \(suggestion)")
+        }
+        
+        // Handle specific recovery actions based on error type
+        switch currentError {
+        case .insufficientData(_, let availableMetrics):
+            if !availableMetrics.isEmpty {
+                await attemptPartialDataCalculation()
+            } else {
+                await retryLastOperation()
+            }
+            
+        case .notAvailable, .dataProcessingFailed:
+            await retryLastOperation()
+            
+        case .historicalDataMissing, .historicalDataIncomplete:
+            await performHistoricalDataImport()
+            
+        case .hrvBaselineNotAvailable:
+            // Can't automatically fix - user needs more time/data
+            print("ℹ️ VIEWMODEL: Baseline requires more time - user guidance provided via recoverySuggestion")
+            
+        default:
+            await retryLastOperation()
+        }
+    }
+    
+    private func attemptPartialDataCalculation() async {
+        print("🔧 VIEWMODEL: Attempting calculation with partial data")
+        
+        do {
+            // Try to get whatever data is available
+            let rhr = (try? await readinessService.fetchRestingHeartRate()) ?? 0
+            let sleepData = (try? await readinessService.fetchSleepData()) ?? HealthKitManager.SleepData(hours: 0.0, quality: 0, startTime: nil, endTime: nil)
+            
+            // Calculate with available data
+            if let score = try await calculationViewModel.calculateReadiness(
+                restingHeartRate: rhr,
+                sleepHours: sleepData.hours,
+                sleepQuality: sleepData.quality,
+                forceRecalculation: true
+            ) {
+                await MainActor.run {
+                    self.readinessScore = score.score
+                    self.readinessCategory = score.category
+                    self.hrvBaseline = score.hrvBaseline
+                    self.hrvDeviation = score.hrvDeviation
+                    self.rhrAdjustment = score.rhrAdjustment
+                    self.sleepAdjustment = score.sleepAdjustment
+                    self.lastCalculationTime = score.calculationTimestamp
+                    
+                    // Clear error state but keep warning
+                    self.error = nil
+                    self.showPartialDataWarning = true
+                }
+                
+                print("✅ VIEWMODEL: Partial data calculation successful")
+            }
+        } catch {
+            print("❌ VIEWMODEL: Partial data calculation failed: \(error)")
+        }
+    }
+    
+    private func retryLastOperation() async {
+        print("🔧 VIEWMODEL: Retrying last operation")
+        
+        await MainActor.run {
+            self.error = nil
+            self.isLoading = true
+        }
+        
+        // Retry loading today's data
+        await loadTodaysReadinessScore()
+    }
+    
+    private func performHistoricalDataImport() async {
+        print("🔧 VIEWMODEL: Starting historical data import for error recovery")
+        
+        await MainActor.run {
+            self.isPerformingInitialSetup = true
+            self.initialSetupProgress = 0.0
+            self.initialSetupStatus = "Importing additional data..."
+        }
+        
+        do {
+            _ = try await readinessService.bulkImportHistoricalData(days: 30) { [weak self] progress, status in
+                Task { @MainActor in
+                    self?.initialSetupProgress = progress
+                    self?.initialSetupStatus = status
+                }
+            }
+            
+            await MainActor.run {
+                self.error = nil
+                self.isPerformingInitialSetup = false
+            }
+            
+            // Reload data after import
+            await loadTodaysReadinessScore()
+            await loadPastScores()
+            
+            print("✅ VIEWMODEL: Historical data import for error recovery completed")
+            
+        } catch {
+            await MainActor.run {
+                self.error = error as? ReadinessError ?? .unknownError(error)
+                self.isPerformingInitialSetup = false
+            }
+            
+            print("❌ VIEWMODEL: Historical data import for error recovery failed: \(error)")
         }
     }
 } 

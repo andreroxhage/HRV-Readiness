@@ -13,12 +13,28 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Initialize core services
         _ = CoreDataManager.shared
         
-        // We'll handle HealthKit authorization during onboarding instead of here
+        // Register background tasks BEFORE app finishes launching
+        BackgroundTaskManager.shared.registerBackgroundTasks()
+        
+        // Enable HealthKit background delivery if authorized
+        Task {
+            do {
+                if HealthKitManager.shared.isAuthorized() {
+                    try await HealthKitManager.shared.enableBackgroundDelivery()
+                    print("✅ APP: HealthKit background delivery enabled")
+                }
+            } catch {
+                print("⚠️ APP: Failed to enable HealthKit background delivery: \(error)")
+            }
+        }
+        
         return true
     }
     
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Schedule background task when app enters background
+        BackgroundTaskManager.shared.scheduleAppRefresh()
+        
         Task {
             await HealthKitManager.shared.updateSharedHealthData()
         }
