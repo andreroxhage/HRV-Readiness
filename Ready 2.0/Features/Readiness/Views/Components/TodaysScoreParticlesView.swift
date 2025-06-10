@@ -197,6 +197,7 @@ struct ParticleSystem: View {
         }
         .onChange(of: isTapped) { _, newValue in
             if newValue {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 applyTapForce()
             }
         }
