@@ -69,7 +69,6 @@ class BackgroundTaskManager {
             print("🔄 BACKGROUND: Starting background readiness calculation")
             
             // Check if we need to calculate today's readiness
-            let today = Calendar.current.startOfDay(for: Date())
             let existingScore = readinessService.getTodaysReadinessScore()
             
             // Only calculate if we don't have today's score or it's outdated

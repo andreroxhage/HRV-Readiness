@@ -1,13 +1,20 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("readinessMode") private var readinessMode: String = "morning"
-    @AppStorage("baselinePeriod") private var baselinePeriod: Int = 7 // FR-2: 7-day rolling baseline default
-    @AppStorage("useRHRAdjustment") private var useRHRAdjustment: Bool = false
-    @AppStorage("useSleepAdjustment") private var useSleepAdjustment: Bool = false
+    @StateObject private var settingsManager: ReadinessSettingsManager
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var viewModel: ReadinessViewModel
     @State private var showHealthKitAuth = false
+    @State private var showingUnsavedChangesAlert = false
+    
+    init(viewModel: ReadinessViewModel) {
+        self.viewModel = viewModel
+        self._settingsManager = StateObject(wrappedValue: ReadinessSettingsManager(
+            onSettingsChanged: { changes in
+                viewModel.handleSettingsChanges(changes)
+            }
+        ))
+    }
     
     var body: some View {
         NavigationView {
@@ -19,24 +26,20 @@ struct SettingsView: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
                         
-                        Picker("Readiness Mode", selection: $readinessMode) {
-                            Text("Morning").tag("morning")
-                            Text("Rolling").tag("rolling")
+                        Picker("Readiness Mode", selection: $settingsManager.readinessMode) {
+                            Text("Morning").tag(ReadinessMode.morning)
+                            Text("Rolling").tag(ReadinessMode.rolling)
                         }
                         .pickerStyle(.segmented)
-                        .onChange(of: readinessMode) { oldValue, newValue in
-                            if oldValue != newValue {
-                                viewModel.updateReadinessMode(newValue)
-                            }
-                        }
+                        .disabled(settingsManager.isSaving || viewModel.isLoading)
                         
                         // Mode description
                         HStack {
-                            Image(systemName: readinessMode == "morning" ? "sunrise" : "clock.arrow.circlepath")
-                                .foregroundStyle(readinessMode == "morning" ? .orange : .blue)
-                                .symbolEffect(.pulse, options: .repeating, value: readinessMode)
+                            Image(systemName: settingsManager.readinessMode == .morning ? "sunrise" : "clock.arrow.circlepath")
+                                .foregroundStyle(settingsManager.readinessMode == .morning ? .orange : .blue)
+                                .symbolEffect(.pulse, options: .repeating, value: settingsManager.readinessMode)
                             
-                            Text(readinessMode == "morning" ? "Measures HRV during sleep (00:00-10:00)" : "Measures HRV over the last 6 hours")
+                            Text(settingsManager.readinessMode == .morning ? "Measures HRV during sleep (00:00-10:00)" : "Measures HRV over the last 6 hours")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -55,16 +58,13 @@ struct SettingsView: View {
                             .font(.headline)
                             .foregroundStyle(.primary)
                         
-                        Picker("Baseline Period", selection: $baselinePeriod) {
-                            Text("7 days").tag(7)
-                            Text("14 days").tag(14)
-                            Text("30 days").tag(30)
+                        Picker("Baseline Period", selection: $settingsManager.baselinePeriod) {
+                            Text("7 days").tag(BaselinePeriod.sevenDays)
+                            Text("14 days").tag(BaselinePeriod.fourteenDays)
+                            Text("30 days").tag(BaselinePeriod.thirtyDays)
                         }
                         .pickerStyle(.segmented)
-                        .disabled(viewModel.isLoading)
-                        .onChange(of: baselinePeriod) { oldValue, newValue in
-                            viewModel.updateBaselinePeriod(newValue)
-                        }
+                        .disabled(settingsManager.isSaving || viewModel.isLoading)
                     }
                     
                     // Baseline status
@@ -84,167 +84,80 @@ struct SettingsView: View {
                 
                 // Score Adjustment Settings
                 Section {
-                    Toggle("Resting Heart Rate Adjustment", isOn: $useRHRAdjustment)
-                        .disabled(viewModel.isLoading)
-                        .onChange(of: useRHRAdjustment) { oldValue, newValue in
-                            viewModel.updateRHRAdjustment(newValue)
-                        }
+                    Toggle("RHR Adjustment", isOn: $settingsManager.useRHRAdjustment)
+                        .disabled(settingsManager.isSaving || viewModel.isLoading)
                     
-                    HStack {
-                        Text("Reduces your score when your RHR is elevated")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.leading)
-                    
-                    Toggle("Sleep Duration Adjustment", isOn: $useSleepAdjustment)
-                        .disabled(viewModel.isLoading)
-                        .onChange(of: useSleepAdjustment) { oldValue, newValue in
-                            viewModel.updateSleepAdjustment(newValue)
-                        }
-                    
-                    HStack {
-                        Text("Reduces your score when sleep is under 6 hours")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.leading)
-                    
-                    Button(action: {
-                        viewModel.recalculateReadiness()
-                    }) {
-                        HStack {
-                            Image(systemName: "arrow.clockwise.circle")
-                            Text("Recalculate Today's Score")
-                        }
-                    }
-                    .disabled(viewModel.isLoading)
-                    
+                    Toggle("Sleep Adjustment", isOn: $settingsManager.useSleepAdjustment)
+                        .disabled(settingsManager.isSaving || viewModel.isLoading)
+                } header: {
+                    Text("Score Adjustments")
+                } footer: {
+                    Text("Enable additional factors that adjust your readiness score. RHR adjustment reduces score when resting heart rate is elevated. Sleep adjustment reduces score when sleep is insufficient.")
+                }
+                
+                // Advanced Settings
+                Section {
                     NavigationLink(destination: AdvancedSettingsView(viewModel: viewModel)) {
                         HStack {
-                            Image(systemName: "gearshape.2")
-                                .foregroundStyle(.gray)
+                            Image(systemName: "gear")
+                                .foregroundStyle(.blue)
                             Text("Advanced Settings")
                             Spacer()
                         }
                     }
+                    .disabled(settingsManager.isSaving || viewModel.isLoading)
                 } header: {
-                    Text("Score Adjustments")
+                    Text("Advanced")
                 } footer: {
-                    Text("These factors can further adjust your readiness score based on other metrics. Disable them for a score based solely on HRV.")
+                    Text("Configure minimum baseline requirements and perform manual recalculations.")
                 }
                 
-                // Calculation status
+                // Health Kit Section
                 Section {
-                    if viewModel.isLoading {
-                        HStack {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .accentColor))
-                                .scaleEffect(0.8)
-                            Text("Recalculating readiness scores...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "clock")
-                                .foregroundStyle(.gray)
-                            Text(viewModel.lastCalculationDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                
-                // Settings
-                Section {
-                    NavigationLink(destination: NotificationSettingsView()) {
-                        HStack {
-                            Image(systemName: "bell.badge")
-                                .foregroundStyle(.gray)
-                            Text("Notifications")
-                            Spacer()
-                        }
-                    }
-
-                    NavigationLink(destination: AppearanceSettingsView()) {
-                        HStack {
-                            Image(systemName: "paintbrush")
-                                .foregroundStyle(.gray)
-                            Text("Appearance")
-                            Spacer()
-                        }
-                    }
-                } header: {
-                    Text("Settings")
-                }
-
-                // Health Data
-                Section {
-                    Button(action: {
+                    Button {
                         showHealthKitAuth = true
-                    }) {
+                    } label: {
                         HStack {
                             Image(systemName: "heart.text.square")
-                                .foregroundStyle(.gray)
-                            Text("Health Data Access")
-                                .foregroundStyle(.primary)
-                                .tint(.primary)
+                                .foregroundStyle(.red)
+                            Text("Health App Permissions")
                             Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
+                    .disabled(settingsManager.isSaving || viewModel.isLoading)
                 } header: {
-                    Text("Health Data")
+                    Text("Data Sources")
                 } footer: {
-                    Text("Review and manage health data permissions used by the app.")
+                    Text("Manage what health data Ready can access from the Health app. HRV, resting heart rate, and sleep data are required for readiness calculations.")
                 }
                 
                 // About Section
                 Section {
-                    NavigationLink(destination: PrivacyPolicyView()) {
+                    NavigationLink(destination: AboutView()) {
                         HStack {
-                            Image(systemName: "hand.raised")
-                                .foregroundStyle(.gray)
-                            Text("Privacy Policy")
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.blue)
+                            Text("About Ready")
                             Spacer()
                         }
                     }
                     
-                    NavigationLink(destination: TermsOfServiceView()) {
+                    NavigationLink(destination: HelpView()) {
                         HStack {
-                            Image(systemName: "doc.text")
-                                .foregroundStyle(.gray)
-                            Text("Terms of Service")
+                            Image(systemName: "questionmark.circle")
+                                .foregroundStyle(.blue)
+                            Text("Help & Support")
                             Spacer()
                         }
-                    }
-                    
-                    Button(action: {
-                        // Implement feedback email
-                        if let url = URL(string: "mailto:feedback@ready.andreroxhage.com") {
-                            UIApplication.shared.open(url)
-                        }
-                    }) {
-                        HStack {
-                            Image(systemName: "envelope")
-                                .foregroundStyle(.gray)
-                            Text("Send Feedback")
-                        }
-                    }
-                    
-                    HStack {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.gray)
-                        Text("Version")
-                        Spacer()
-                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
-                            .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("About")
+                    Text("Information")
                 }
                 
-                // Debug Data Section
+                // Debug Section (Development builds only)
                 Section {
                     NavigationLink(destination: DebugDataView(viewModel: viewModel)) {
                         HStack {
@@ -263,9 +176,31 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if settingsManager.hasUnsavedChanges {
+                        Button("Cancel") {
+                            showingUnsavedChangesAlert = true
+                        }
+                    } else {
+                        Button("Done") {
+                            dismiss()
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
+                    if settingsManager.hasUnsavedChanges {
+                        Button("Save") {
+                            Task {
+                                do {
+                                    try await settingsManager.saveSettings()
+                                    dismiss()
+                                } catch {
+                                    print("❌ Failed to save settings: \(error)")
+                                }
+                            }
+                        }
+                        .disabled(settingsManager.isSaving || viewModel.isLoading)
                     }
                 }
             }
@@ -273,116 +208,47 @@ struct SettingsView: View {
         .sheet(isPresented: $showHealthKitAuth) {
             HealthKitAuthView()
         }
+        .alert("Unsaved Changes", isPresented: $showingUnsavedChangesAlert) {
+            Button("Discard Changes", role: .destructive) {
+                settingsManager.discardChanges()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("You have unsaved changes. Do you want to discard them?")
+        }
+        .onAppear {
+            // Settings manager is now initialized with proper callback to ViewModel
+        }
     }
 }
 
-// Helper method to convert baseline period int to appropriate type
-extension SettingsView {
-    func updateBaselinePeriod(_ value: Int) {
-        switch value {
-        case 7: viewModel.updateBaselinePeriod(.sevenDays)
-        case 14: viewModel.updateBaselinePeriod(.fourteenDays)
-        case 30: viewModel.updateBaselinePeriod(.thirtyDays)
-        default: viewModel.updateBaselinePeriod(.sevenDays)
-        }
+// Helper extensions for better readability
+extension ReadinessMode: CaseIterable {
+    public static var allCases: [ReadinessMode] {
+        return [.morning, .rolling]
     }
 }
 
 // Placeholder views for navigation links
-struct NotificationSettingsView: View {
+struct AboutView: View {
     var body: some View {
-        List {
-            Section {
-                Toggle("Daily Score Updates", isOn: .constant(true))
-                Toggle("Low Readiness Alerts", isOn: .constant(true))
-                Toggle("Weekly Reports", isOn: .constant(true))
-            }
-            
-            Section {
-                Toggle("Critical HRV Changes", isOn: .constant(true))
-                Toggle("Sleep Quality Alerts", isOn: .constant(true))
-            } header: {
-                Text("Health Alerts")
-            }
-        }
-        .navigationTitle("Notifications")
+        Text("About Ready 2.0")
+            .navigationTitle("About")
+    }
+}
+
+struct HelpView: View {
+    var body: some View {
+        Text("Help & Support")
+            .navigationTitle("Help")
     }
 }
 
 struct HealthKitAuthView: View {
-    @Environment(\.dismiss) private var dismiss
-    
     var body: some View {
-        NavigationView {
-            List {
-                Section {
-                    HStack {
-                        Image(systemName: "heart.text.square")
-                            .foregroundStyle(.red)
-                            .font(.title)
-                        Text("Required Health Data")
-                            .font(.headline)
-                    }
-                    .padding(.vertical, 8)
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        HealthDataRow(title: "Heart Rate Variability", description: "Used to calculate your readiness score", isEnabled: true)
-                        HealthDataRow(title: "Resting Heart Rate", description: "Helps assess recovery status", isEnabled: true)
-                        HealthDataRow(title: "Sleep Analysis", description: "Measures sleep duration and quality", isEnabled: true)
-                    }
-                } footer: {
-                    Text("This data is required for calculating your daily readiness score.")
-                }
-                
-                Section {
-                    Button(action: {
-                        // Implement opening Health settings
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    }) {
-                        Text("Open Settings")
-                            .frame(maxWidth: .infinity)
-                    }
-                } footer: {
-                    Text("You can manage app permissions in the settings.")
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Settings")
-                        .font(.title)
-                        .fontWeight(.medium)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct HealthDataRow: View {
-    let title: String
-    let description: String
-    let isEnabled: Bool
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: isEnabled ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(isEnabled ? .green : .red)
-        }
+        Text("HealthKit Authorization")
+            .navigationTitle("Health Permissions")
     }
 }
 

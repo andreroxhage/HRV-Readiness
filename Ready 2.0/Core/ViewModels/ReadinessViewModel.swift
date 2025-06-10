@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreData
 
 // ReadinessViewModel
 // Main ViewModel for the Readiness feature UI
@@ -71,56 +72,69 @@ class ReadinessViewModel: ObservableObject {
         self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
         self.lastCalculationTime = userDefaultsManager.lastCalculationTime
         
-        // Setup observers for settings changes
-        setupObservers()
+        // Note: Settings changes are now handled via explicit handleSettingsChanges() calls
+        // This eliminates the race conditions and performance issues from the old observer pattern
+    }
+    
+    // MARK: - Settings Integration
+    
+    /// Handle settings changes from the ReadinessSettingsManager
+    /// This method is called when settings are explicitly saved
+    func handleSettingsChanges(_ changes: ReadinessSettingsChange) {
+        print("🔄 VIEWMODEL: Received settings changes: \(changes.types)")
+        print("📊 VIEWMODEL: Requires historical recalculation: \(changes.requiresHistoricalRecalculation)")
+        print("📊 VIEWMODEL: Requires current recalculation: \(changes.requiresCurrentRecalculation)")
         
-        // Load settings from UserDefaults but don't trigger initial setup yet
-        // Initial setup will be triggered when ContentView appears for users who completed onboarding
-    }
-    
-    // MARK: - Setup
-    
-    private func setupObservers() {
-        // Observe changes to UserDefaults
-        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                
-                print("⚙️ VIEWMODEL: UserDefaults changed, checking for setting updates...")
-                
-                // Check for readiness mode changes
-                let newMode = self.userDefaultsManager.readinessMode
-                if newMode != self.readinessMode {
-                    print("🔄 VIEWMODEL: Readiness mode changed from \(self.readinessMode.rawValue) to \(newMode.rawValue)")
-                    self.readinessMode = newMode
-                    self.recalculateReadiness()
-                }
-                
-                // Check for baseline period changes
-                let newPeriod = self.userDefaultsManager.baselinePeriod
-                if newPeriod != self.baselinePeriod {
-                    print("🔄 VIEWMODEL: Baseline period changed from \(self.baselinePeriod.rawValue) to \(newPeriod.rawValue)")
-                    self.baselinePeriod = newPeriod
-                    self.scheduleHistoricalRecalculation(reason: "baseline period change")
-                }
-                
-                // Check for adjustment toggles
-                let newUseRHR = self.userDefaultsManager.useRHRAdjustment
-                if newUseRHR != self.useRHRAdjustment {
-                    print("💓 VIEWMODEL: RHR adjustment changed from \(self.useRHRAdjustment) to \(newUseRHR)")
-                    self.useRHRAdjustment = newUseRHR
-                    self.scheduleHistoricalRecalculation(reason: "RHR adjustment change")
-                }
-                
-                let newUseSleep = self.userDefaultsManager.useSleepAdjustment
-                if newUseSleep != self.useSleepAdjustment {
-                    print("😴 VIEWMODEL: Sleep adjustment changed from \(self.useSleepAdjustment) to \(newUseSleep)")
-                    self.useSleepAdjustment = newUseSleep
-                    self.scheduleHistoricalRecalculation(reason: "sleep adjustment change")
-                }
+        // Update local state to match saved values
+        updateLocalStateFromSavedSettings()
+        
+        // Handle business logic based on change types
+        Task { @MainActor in
+            if changes.requiresHistoricalRecalculation {
+                print("🔄 VIEWMODEL: Starting 90-day historical recalculation...")
+                await performHistoricalRecalculation()
+            } else if changes.requiresCurrentRecalculation {
+                print("🔄 VIEWMODEL: Starting current day recalculation...")
+                await loadTodaysReadinessScore()
+            } else {
+                print("ℹ️ VIEWMODEL: No recalculation needed for these changes")
             }
-            .store(in: &cancellables)
+        }
     }
+    
+    /// Update local state from UserDefaults (after settings are saved)
+    private func updateLocalStateFromSavedSettings() {
+        self.readinessMode = userDefaultsManager.readinessMode
+        self.baselinePeriod = userDefaultsManager.baselinePeriod
+        self.useRHRAdjustment = userDefaultsManager.useRHRAdjustment
+        self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
+    }
+    
+    /// Perform 90-day historical recalculation after settings changes
+    private func performHistoricalRecalculation() async {
+        print("🔄 VIEWMODEL: Starting 90-day historical recalculation...")
+        await MainActor.run {
+            self.isLoading = true
+            self.error = nil
+        }
+        
+        do {
+            // Use the same method as the advanced settings
+            await recalculateAllScores()
+            print("✅ VIEWMODEL: Historical recalculation completed successfully")
+        } catch {
+            await MainActor.run {
+                self.error = error as? ReadinessError ?? .unknownError(error)
+                print("❌ VIEWMODEL: Historical recalculation failed: \(error)")
+            }
+        }
+        
+        await MainActor.run {
+            self.isLoading = false
+        }
+    }
+    
+
     
     // MARK: - Data Loading
     
@@ -313,15 +327,10 @@ class ReadinessViewModel: ObservableObject {
                     await self.loadPastScores()
                 }
             }
-        } catch let error as ReadinessError {
-            await MainActor.run {
-                self.error = error
-                self.isLoading = false
-            }
         } catch {
             await MainActor.run {
-                self.error = .unknownError(error)
                 self.isLoading = false
+                print("❌ VIEWMODEL: Recalculate all scores failed: \(error)")
             }
         }
     }
@@ -370,53 +379,6 @@ class ReadinessViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Settings Management
-    
-    func updateReadinessMode(_ modeString: String) {
-        if let mode = ReadinessMode(rawValue: modeString), mode != self.readinessMode {
-            self.readinessMode = mode
-            userDefaultsManager.readinessMode = mode
-            // The observer will handle recalculation
-        }
-    }
-    
-    func updateBaselinePeriod(_ period: BaselinePeriod) {
-        if period != self.baselinePeriod {
-            self.baselinePeriod = period
-            userDefaultsManager.baselinePeriod = period
-            // The observer will handle recalculation
-        }
-    }
-    
-    func updateBaselinePeriod(_ days: Int) {
-        let period: BaselinePeriod
-        switch days {
-        case 14:
-            period = .fourteenDays
-        case 30:
-            period = .thirtyDays
-        default:
-            period = .sevenDays
-        }
-        updateBaselinePeriod(period)
-    }
-    
-    func updateRHRAdjustment(_ enabled: Bool) {
-        if enabled != self.useRHRAdjustment {
-            self.useRHRAdjustment = enabled
-            userDefaultsManager.useRHRAdjustment = enabled
-            // The observer will handle recalculation
-        }
-    }
-    
-    func updateSleepAdjustment(_ enabled: Bool) {
-        if enabled != self.useSleepAdjustment {
-            self.useSleepAdjustment = enabled
-            userDefaultsManager.useSleepAdjustment = enabled
-            // The observer will handle recalculation
-        }
-    }
-    
     // MARK: - Health Data Access
     
     func fetchRestingHeartRate() async throws -> Double {
@@ -426,74 +388,6 @@ class ReadinessViewModel: ObservableObject {
     func fetchSleepData() async throws -> (hours: Double, quality: Int) {
         let sleepData = try await readinessService.fetchSleepData()
         return (hours: sleepData.hours, quality: sleepData.quality)
-    }
-    
-    // MARK: - Debounced Recalculation
-    
-    /// Schedules a historical recalculation with debouncing to avoid excessive recalculation
-    private func scheduleHistoricalRecalculation(reason: String) {
-        print("⏱️ VIEWMODEL: Scheduling debounced recalculation for: \(reason)")
-        
-        // Set loading state immediately for user feedback
-        Task { @MainActor in
-            self.isLoading = true
-            self.error = nil
-        }
-        
-        // Cancel any existing timer
-        recalculationTimer?.invalidate()
-        
-        // Schedule new recalculation after 1 second delay
-        recalculationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
-            
-            print("🔄 VIEWMODEL: Executing debounced historical recalculation")
-            
-            Task { @MainActor in
-                // First recalculate today's score for immediate feedback
-                await self.performQuickRecalculation()
-                
-                // Then do the expensive historical recalculation in the background
-                Task.detached {
-                    do {
-                        try await self.readinessService.recalculateAllReadinessScores()
-                        
-                        // Update UI on main thread
-                        await MainActor.run {
-                            Task {
-                                await self.loadTodaysReadinessScore()
-                                await self.loadPastScores()
-                                self.isLoading = false
-                            }
-                        }
-                    } catch {
-                        await MainActor.run {
-                            self.error = error as? ReadinessError ?? .unknownError(error)
-                            self.isLoading = false
-                            print("❌ VIEWMODEL: Historical recalculation failed: \(error)")
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Quick recalculation for immediate user feedback
-    @MainActor
-    private func performQuickRecalculation() async {
-        do {
-            if let score = try await calculationViewModel.recalculateReadinessForDate(Date()) {
-                self.readinessScore = score.score
-                self.readinessCategory = score.category
-                self.hrvBaseline = score.hrvBaseline
-                self.hrvDeviation = score.hrvDeviation
-                self.rhrAdjustment = score.rhrAdjustment
-                self.sleepAdjustment = score.sleepAdjustment
-                self.lastCalculationTime = score.calculationTimestamp
-            }
-        } catch {
-            print("⚠️ VIEWMODEL: Quick recalculation failed, will be updated after full recalculation")
-        }
     }
     
     // MARK: - Initial Setup Methods
@@ -687,161 +581,6 @@ class ReadinessViewModel: ObservableObject {
             return .black
         case .low, .fatigue, .unknown:
             return .white
-        }
-    }
-    
-    // MARK: - Enhanced Error Handling (Using ReadinessError enum properties)
-    
-    private func handleReadinessError(_ error: ReadinessError) {
-        self.error = error
-        
-        // Reset error state flags
-        self.showPartialDataWarning = false
-        self.canUsePartialData = false
-        
-        // Use ReadinessError's built-in logic instead of duplicating
-        if error.shouldDisplay {
-            switch error {
-            case .insufficientData(_, let availableMetrics):
-                if !availableMetrics.isEmpty {
-                    self.showPartialDataWarning = true
-                    self.canUsePartialData = true
-                }
-                
-            case .historicalDataIncomplete(_, _, let partialResult):
-                if partialResult {
-                    self.showPartialDataWarning = true
-                    self.canUsePartialData = true
-                }
-                
-            default:
-                break
-            }
-        }
-        
-        print("🔧 VIEWMODEL: Error handled - \(error.errorDescription ?? "Unknown error")")
-        if let suggestion = error.recoverySuggestion {
-            print("💡 VIEWMODEL: Recovery suggestion - \(suggestion)")
-        }
-    }
-    
-    func attemptErrorRecovery() async {
-        guard let currentError = error else { return }
-        
-        print("🔧 VIEWMODEL: Attempting error recovery for: \(currentError)")
-        
-        // Use ReadinessError's built-in recovery logic
-        if let suggestion = currentError.recoverySuggestion {
-            print("💡 VIEWMODEL: Following recovery suggestion: \(suggestion)")
-        }
-        
-        // Handle specific recovery actions based on error type
-        switch currentError {
-        case .insufficientData(_, let availableMetrics):
-            if !availableMetrics.isEmpty {
-                await attemptPartialDataCalculation()
-            } else {
-                await retryLastOperation()
-            }
-            
-        case .notAvailable, .dataProcessingFailed:
-            await retryLastOperation()
-            
-        case .historicalDataMissing, .historicalDataIncomplete:
-            await performHistoricalDataImport()
-            
-        case .hrvBaselineNotAvailable:
-            // Can't automatically fix - user needs more time/data
-            print("ℹ️ VIEWMODEL: Baseline requires more time - user guidance provided via recoverySuggestion")
-            
-        default:
-            await retryLastOperation()
-        }
-    }
-    
-    private func attemptPartialDataCalculation() async {
-        print("🔧 VIEWMODEL: Attempting calculation with partial data")
-        
-        do {
-            // Try to get whatever data is available
-            let rhr = (try? await readinessService.fetchRestingHeartRate()) ?? 0
-            let sleepData = (try? await readinessService.fetchSleepData()) ?? HealthKitManager.SleepData(hours: 0.0, quality: 0, startTime: nil, endTime: nil)
-            
-            // Calculate with available data
-            if let score = try await calculationViewModel.calculateReadiness(
-                restingHeartRate: rhr,
-                sleepHours: sleepData.hours,
-                sleepQuality: sleepData.quality,
-                forceRecalculation: true
-            ) {
-                await MainActor.run {
-                    self.readinessScore = score.score
-                    self.readinessCategory = score.category
-                    self.hrvBaseline = score.hrvBaseline
-                    self.hrvDeviation = score.hrvDeviation
-                    self.rhrAdjustment = score.rhrAdjustment
-                    self.sleepAdjustment = score.sleepAdjustment
-                    self.lastCalculationTime = score.calculationTimestamp
-                    
-                    // Clear error state but keep warning
-                    self.error = nil
-                    self.showPartialDataWarning = true
-                }
-                
-                print("✅ VIEWMODEL: Partial data calculation successful")
-            }
-        } catch {
-            print("❌ VIEWMODEL: Partial data calculation failed: \(error)")
-        }
-    }
-    
-    private func retryLastOperation() async {
-        print("🔧 VIEWMODEL: Retrying last operation")
-        
-        await MainActor.run {
-            self.error = nil
-            self.isLoading = true
-        }
-        
-        // Retry loading today's data
-        await loadTodaysReadinessScore()
-    }
-    
-    private func performHistoricalDataImport() async {
-        print("🔧 VIEWMODEL: Starting historical data import for error recovery")
-        
-        await MainActor.run {
-            self.isPerformingInitialSetup = true
-            self.initialSetupProgress = 0.0
-            self.initialSetupStatus = "Importing additional data..."
-        }
-        
-        do {
-            _ = try await readinessService.bulkImportHistoricalData(days: 30) { [weak self] progress, status in
-                Task { @MainActor in
-                    self?.initialSetupProgress = progress
-                    self?.initialSetupStatus = status
-                }
-            }
-            
-            await MainActor.run {
-                self.error = nil
-                self.isPerformingInitialSetup = false
-            }
-            
-            // Reload data after import
-            await loadTodaysReadinessScore()
-            await loadPastScores()
-            
-            print("✅ VIEWMODEL: Historical data import for error recovery completed")
-            
-        } catch {
-            await MainActor.run {
-                self.error = error as? ReadinessError ?? .unknownError(error)
-                self.isPerformingInitialSetup = false
-            }
-            
-            print("❌ VIEWMODEL: Historical data import for error recovery failed: \(error)")
         }
     }
 } 

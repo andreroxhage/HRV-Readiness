@@ -67,19 +67,6 @@ struct ContentView: View {
                                 .transition(.opacity)
                                 .id(viewModel.readinessCategory.description)
                         }
-                    }.onChange(of: readinessMode) { oldValue, newValue in
-                        if oldValue != newValue {
-                            Task { @MainActor in
-                                // Wait a moment to ensure settings view has time to dismiss if needed
-                                viewModel.updateReadinessMode(newValue)
-                                
-                                // Slight delay before refreshing data to avoid race conditions
-                                try? await Task.sleep(for: .milliseconds(100))
-                                
-                                // Force recalculation with the new mode
-                                refreshData(forceRecalculation: true)
-                            }
-                        }
                     }
 
                     Section {
