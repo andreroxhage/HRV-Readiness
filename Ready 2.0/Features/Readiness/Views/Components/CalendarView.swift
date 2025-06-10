@@ -1,11 +1,13 @@
 import SwiftUI
+import Foundation
+import CoreData
 
 struct CalendarView: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @Environment(\.appearanceViewModel) private var appearanceViewModel
     let monthsToShow = 6
     
-    // Calendar components
+    // Calendar components - Using standard calendar with Monday-first display logic
     private let calendar = Calendar.current
     private let daysInWeek = 7
     private let cellSize: CGFloat = 14
@@ -22,7 +24,7 @@ struct CalendarView: View {
                 
                 HStack(spacing: sevenDayCellSpacing) {
                     ForEach(0..<daysInWeek, id: \.self) { dayIndex in
-                        let date = self.getDateForWeekday(weekday: dayIndex + 2)
+                        let date = self.getDateForWeekday(weekday: dayIndex)
                         sevenDayCell(for: date)
                     }
                 }
@@ -46,10 +48,12 @@ struct CalendarView: View {
         }
     }
     
-    // Get the date for a specific weekday in the current week
+    // Get the date for a specific weekday in the current week (Monday-first)
     private func getDateForWeekday(weekday: Int) -> Date {
         let today = Date()
-        let correctedWeekday = weekday > 7 ? weekday - 7 : weekday
+        // Convert from Monday-first index (0-6) to Calendar weekday (2-8 for Mon-Sun)
+        let calendarWeekday = weekday + 2 // Monday = 2, so add 2
+        let correctedWeekday = calendarWeekday > 7 ? calendarWeekday - 7 : calendarWeekday
         
         var components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
         components.weekday = correctedWeekday
@@ -111,10 +115,20 @@ struct CalendarView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
+            // Get the correct number of days in the month
             let daysInMonth = calendar.range(of: .day, in: .month, for: month)?.count ?? 30
+            
+            // Get the first day of the month
             let firstDay = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+            
+            // Get what day of the week the 1st falls on (1=Sunday, 2=Monday, etc.)
             let firstWeekday = calendar.component(.weekday, from: firstDay)
-            let weekOffset = firstWeekday - calendar.firstWeekday
+            
+            // Calculate offset for Monday-first display
+            // Sunday=1 should display in position 6 (last column)
+            // Monday=2 should display in position 0 (first column)
+            // Tuesday=3 should display in position 1, etc.
+            let weekOffset = (firstWeekday == 1) ? 6 : (firstWeekday - 2)
             
             VStack(spacing: cellSpacing) {
                 // Days of the week header
@@ -193,9 +207,9 @@ struct CalendarView: View {
         }
     }
     
-    // Format the day of the week as a single letter
+    // Format the day of the week as a single letter (Monday-first)
     private func dayOfWeekLetter(for dayIndex: Int) -> String {
-        let days = ["S", "M", "T", "W", "T", "F", "S"]
+        let days = ["M", "T", "W", "T", "F", "S", "S"] // Monday-first: Mon, Tue, Wed, Thu, Fri, Sat, Sun
         return days[dayIndex]
     }
     
