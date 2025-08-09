@@ -46,6 +46,8 @@ struct Ready_2_0App: App {
                 print("🚀 APP: Ready 2.0 launched")
                 print("📊 APP: hasCompletedOnboarding = \(hasCompletedOnboarding)")
                 debugCoreDataState()
+                // Retention cleanup at app launch
+                CoreDataManager.shared.cleanupDataOlderThan(days: 365)
             }
         }
     }

@@ -698,7 +698,8 @@ class ReadinessService {
         print("🔄 READINESS: Recalculating historical readiness scores")
         
         // Get all health metrics that have valid HRV data
-        let allMetrics = storageService.getHealthMetricsForPastDays(limitDays)
+        let daysClamped = min(limitDays, 365)
+        let allMetrics = storageService.getHealthMetricsForPastDays(daysClamped)
             .filter { $0.hasValidHRV }
             .sorted { ($0.date ?? Date.distantPast) < ($1.date ?? Date.distantPast) }
         
@@ -898,6 +899,8 @@ class ReadinessService {
         // Mark initial setup as complete
         userDefaultsManager.initialDataImportCompleted = true
         userDefaultsManager.lastCalculationTime = Date()
+        // Retention cleanup after backfill (safety)
+        storageService.cleanupDataOlderThan(days: 365)
     }
     
     /// Checks if initial data import has been completed

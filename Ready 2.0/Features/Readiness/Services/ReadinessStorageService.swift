@@ -107,4 +107,9 @@ class ReadinessStorageService {
     func saveContext() {
         coreDataManager.saveContext()
     }
+
+    // Data retention helpers
+    func cleanupDataOlderThan(days: Int) {
+        coreDataManager.cleanupDataOlderThan(days: days)
+    }
 } 

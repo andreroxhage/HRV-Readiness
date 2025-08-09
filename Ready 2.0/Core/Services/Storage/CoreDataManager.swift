@@ -106,7 +106,9 @@ class CoreDataManager {
     func getHealthMetricsForPastDays(_ days: Int) -> [HealthMetrics] {
         let calendar = Calendar.current
         let endDate = calendar.startOfDay(for: Date().addingTimeInterval(86400)) // Tomorrow at midnight
-        let startDate = calendar.date(byAdding: .day, value: -days, to: calendar.startOfDay(for: Date()))!
+        let requestedStart = calendar.date(byAdding: .day, value: -days, to: calendar.startOfDay(for: Date()))!
+        let cutoff = Date().addingTimeInterval(-365 * 24 * 3600)
+        let startDate = max(requestedStart, cutoff)
         
         let fetchRequest: NSFetchRequest<HealthMetrics> = HealthMetrics.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate)
@@ -122,8 +124,10 @@ class CoreDataManager {
     
     // Fetch HealthMetrics within a specific date interval [startDate, endDate)
     func getHealthMetrics(from startDate: Date, to endDate: Date) -> [HealthMetrics] {
+        let cutoff = Date().addingTimeInterval(-365 * 24 * 3600)
+        let clampedStart = max(startDate, cutoff)
         let fetchRequest: NSFetchRequest<HealthMetrics> = HealthMetrics.fetchRequest()
-        fetchRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate)
+        fetchRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", clampedStart as NSDate, endDate as NSDate)
         fetchRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
         
         do {
@@ -177,7 +181,9 @@ class CoreDataManager {
     func getReadinessScoresForPastDays(_ days: Int) -> [ReadinessScore] {
         let calendar = Calendar.current
         let endDate = calendar.startOfDay(for: Date().addingTimeInterval(86400)) // Tomorrow at midnight
-        let startDate = calendar.date(byAdding: .day, value: -days, to: calendar.startOfDay(for: Date()))!
+        let requestedStart = calendar.date(byAdding: .day, value: -days, to: calendar.startOfDay(for: Date()))!
+        let cutoff = Date().addingTimeInterval(-365 * 24 * 3600)
+        let startDate = max(requestedStart, cutoff)
         
         let fetchRequest: NSFetchRequest<ReadinessScore> = ReadinessScore.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate)
@@ -189,6 +195,36 @@ class CoreDataManager {
             print("Error fetching readiness scores for past \(days) days: \(error)")
             return []
         }
+    }
+
+    // MARK: - Retention Cleanup (delete records older than N days)
+    func cleanupDataOlderThan(days: Int) {
+        let cutoff = Date().addingTimeInterval(-Double(days) * 24 * 3600)
+        let context = viewContext
+
+        // HealthMetrics
+        do {
+            let req: NSFetchRequest<HealthMetrics> = HealthMetrics.fetchRequest()
+            req.predicate = NSPredicate(format: "date < %@", cutoff as NSDate)
+            let oldMetrics = try context.fetch(req)
+            for m in oldMetrics { context.delete(m) }
+            if !oldMetrics.isEmpty { print("🧹 COREDATA: Deleted \(oldMetrics.count) HealthMetrics older than \(days)d") }
+        } catch {
+            print("❌ COREDATA: Failed to fetch old HealthMetrics: \(error)")
+        }
+
+        // ReadinessScore
+        do {
+            let req: NSFetchRequest<ReadinessScore> = ReadinessScore.fetchRequest()
+            req.predicate = NSPredicate(format: "date < %@", cutoff as NSDate)
+            let oldScores = try context.fetch(req)
+            for s in oldScores { context.delete(s) }
+            if !oldScores.isEmpty { print("🧹 COREDATA: Deleted \(oldScores.count) ReadinessScore older than \(days)d") }
+        } catch {
+            print("❌ COREDATA: Failed to fetch old ReadinessScore: \(error)")
+        }
+
+        saveContext()
     }
     
     // MARK: - Data Cleanup Methods

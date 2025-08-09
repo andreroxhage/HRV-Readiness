@@ -124,6 +124,23 @@ class ReadinessServiceTests: XCTestCase {
             XCTFail("Expected readiness score for d4 to be created")
         }
     }
+
+    func testRetentionCleanupDeletesOldData() {
+        let coreData = CoreDataManager.shared
+        let calendar = Calendar.current
+        
+        // Seed a score and metrics 400 days ago
+        let oldDate = calendar.date(byAdding: .day, value: -400, to: calendar.startOfDay(for: Date()))!
+        let metrics = coreData.saveHealthMetrics(date: oldDate, hrv: 40, restingHeartRate: 60, sleepHours: 7, sleepQuality: 3)
+        _ = coreData.saveReadinessScore(date: oldDate, score: 50, hrvBaseline: 45, hrvDeviation: -11, readinessCategory: ReadinessCategory.low.rawValue, rhrAdjustment: 0, sleepAdjustment: 0, readinessMode: ReadinessMode.morning.rawValue, baselinePeriod: BaselinePeriod.sevenDays.rawValue, healthMetrics: metrics)
+        
+        // Run cleanup
+        coreData.cleanupDataOlderThan(days: 365)
+        
+        // Assert old records are gone
+        XCTAssertNil(coreData.getHealthMetricsForDate(oldDate))
+        XCTAssertNil(coreData.getReadinessScoreForDate(oldDate))
+    }
 }
 
 // Mock ReadinessService for testing
