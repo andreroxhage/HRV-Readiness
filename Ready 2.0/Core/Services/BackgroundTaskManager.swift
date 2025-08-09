@@ -77,13 +77,32 @@ class BackgroundTaskManager {
             
             if shouldCalculate {
                 // Try to fetch fresh health data and calculate
-                let rhr = try await healthKitManager.fetchRestingHeartRate()
-                let sleepData = try await healthKitManager.fetchSleepData()
-                
+                var rhr: Double = 0
+                var sleepHours: Double = 0
+                var sleepQuality: Int = 0
+
+                if readinessService.useRHRAdjustment {
+                    do {
+                        rhr = try await healthKitManager.fetchRestingHeartRate()
+                    } catch {
+                        print("⚠️ BACKGROUND: RHR fetch failed: \(error). Continuing without RHR.")
+                    }
+                }
+
+                if readinessService.useSleepAdjustment {
+                    do {
+                        let sleepData = try await healthKitManager.fetchSleepData()
+                        sleepHours = sleepData.hours
+                        sleepQuality = sleepData.quality
+                    } catch {
+                        print("⚠️ BACKGROUND: Sleep fetch failed: \(error). Continuing without Sleep.")
+                    }
+                }
+
                 let score = try await readinessService.processAndSaveTodaysDataForCurrentMode(
                     restingHeartRate: rhr,
-                    sleepHours: sleepData.hours,
-                    sleepQuality: sleepData.quality
+                    sleepHours: sleepHours,
+                    sleepQuality: sleepQuality
                 )
                 
                 if let score = score {
@@ -105,6 +124,11 @@ class BackgroundTaskManager {
             return false
         } catch {
             print("❌ BACKGROUND: Background calculation failed: \(error)")
+            // Attempt to update widget with latest known data even on failure
+            if readinessService.updateWidgetWithLatestScoreIfAvailable() {
+                print("ℹ️ BACKGROUND: Updated widget with latest known score despite failure")
+                return true
+            }
             return false
         }
     }
@@ -113,25 +137,39 @@ class BackgroundTaskManager {
     
     func scheduleAppRefresh() {
         print("📅 BACKGROUND: Scheduling next app refresh")
-        
-        let request = BGAppRefreshTaskRequest(identifier: Self.refreshIdentifier)
-        
-        // Schedule for early morning (~6 AM next day)
         let calendar = Calendar.current
         let now = Date()
-        // Compute next 6 AM local time by advancing to tomorrow's 6:00
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-        let morningTime = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: calendar.startOfDay(for: tomorrow)) ?? now
-        
-        request.earliestBeginDate = morningTime
-        
-        do {
-            // Cancel any existing queued task with same identifier to avoid duplicates if API permits
-            // Note: iOS may coalesce requests; we rely on single identifier semantics.
-            try BGTaskScheduler.shared.submit(request)
-            print("✅ BACKGROUND: Successfully scheduled app refresh for \(morningTime)")
-        } catch {
-            print("❌ BACKGROUND: Failed to schedule app refresh: \(error)")
+
+        // Compute the next local 06:00 (today if in the future, otherwise tomorrow)
+        let todaySix = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: calendar.startOfDay(for: now))
+        let targetDate: Date
+        if let todaySix = todaySix, todaySix > now {
+            targetDate = todaySix
+        } else {
+            let tomorrowStart = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+            targetDate = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: tomorrowStart) ?? now.addingTimeInterval(24*3600)
+        }
+
+        BGTaskScheduler.shared.getPendingTaskRequests { requests in
+            // Avoid submitting a duplicate if an existing request is close to the target time (within 30 minutes)
+            let hasSimilar = requests.contains { req in
+                guard req.identifier == Self.refreshIdentifier, let begin = req.earliestBeginDate else { return false }
+                return abs(begin.timeIntervalSince(targetDate)) < 1800
+            }
+
+            if hasSimilar {
+                print("ℹ️ BACKGROUND: Similar refresh request already pending around \(targetDate), skipping submit")
+                return
+            }
+
+            let request = BGAppRefreshTaskRequest(identifier: Self.refreshIdentifier)
+            request.earliestBeginDate = targetDate
+            do {
+                try BGTaskScheduler.shared.submit(request)
+                print("✅ BACKGROUND: Scheduled app refresh for \(targetDate)")
+            } catch {
+                print("❌ BACKGROUND: Failed to schedule app refresh: \(error)")
+            }
         }
     }
     

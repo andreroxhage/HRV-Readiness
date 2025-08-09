@@ -776,6 +776,23 @@ class ReadinessService {
                existingScore.readinessCategory != category.rawValue ||
                existingScore.hrvBaseline != hrvBaseline
     }
+
+    /// Attempts to update the widget with the most recent available score. Returns true if widget was updated.
+    @discardableResult
+    func updateWidgetWithLatestScoreIfAvailable() -> Bool {
+        let recent = getReadinessScoresForPastDays(7)
+            .sorted { ($0.calculationTimestamp ?? Date.distantPast) > ($1.calculationTimestamp ?? Date.distantPast) }
+            .first
+        if let latest = recent {
+            userDefaultsManager.updateWidgetData(
+                score: latest.score,
+                category: ReadinessCategory.forScore(latest.score),
+                timestamp: latest.calculationTimestamp ?? Date()
+            )
+            return true
+        }
+        return false
+    }
     
     // MARK: - Initial Setup Methods
     
