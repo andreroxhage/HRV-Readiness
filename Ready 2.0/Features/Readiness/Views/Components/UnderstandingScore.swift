@@ -99,10 +99,10 @@ struct ScoreInfoOverlay: View {
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Within ±3% of baseline → Optimal (80-100)")
-                            Text("3-7% below baseline → Moderate (50-79)")
-                            Text("7-10% below baseline → Low (30-49)")
-                            Text(">10% below baseline → Fatigue (0-29)")
-                            Text(">10% above baseline → Supercompensation (90-100)")
+                            Text("3–7% below baseline → Moderate (50–79)")
+                            Text("7–10% below baseline → Low (30–49)")
+                            Text(">10% below baseline → Fatigue (0–29)")
+                            Text(">10% above baseline → Supercompensation (90–100)")
                                 .foregroundStyle(viewModel.hrvDeviation > 10 ? viewModel.hrvDeviationColor : .secondary)
                         }
                         .font(.subheadline)
