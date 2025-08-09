@@ -36,8 +36,11 @@ struct Provider: TimelineProvider {
             readinessScore: 0,
             readinessCategory: "Unknown",
             readinessMode: "morning",
-            readinessEmoji: "❓",
-            readinessDescription: "No data available"
+            readinessEmoji: "",
+            readinessDescription: "No data available",
+            recentDates: [],
+            recentScores: [],
+            recentCategories: []
         )
     }
 
@@ -140,8 +143,6 @@ struct SmallWidgetView: View {
             ringBackground()
             ringProgress(score: entry.readinessScore)
             VStack(spacing: 0) {
-                Text(entry.readinessEmoji)
-                    .font(.headline)
                 Text("\(Int(entry.readinessScore))")
                     .font(.system(.title2, design: .rounded))
                     .bold()
@@ -203,7 +204,6 @@ struct MediumWidgetView: View {
                 ringBackground()
                 ringProgress(score: entry.readinessScore)
                 VStack(spacing: 0) {
-                    Text(entry.readinessEmoji).font(.headline)
                     Text("\(Int(entry.readinessScore))")
                         .font(.system(.title2, design: .rounded))
                         .bold()
