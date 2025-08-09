@@ -52,7 +52,7 @@ class ReadinessCalculationViewModel {
         )
     }
     
-    func recalculateHistoricalReadiness(days: Int = 30) async throws -> [ReadinessScore] {
+    func recalculateHistoricalReadiness(days: Int = 30, progressCallback: ((Double, String) -> Void)? = nil) async throws -> [ReadinessScore] {
         var results: [ReadinessScore] = []
         var errors: [Error] = []
         
@@ -64,6 +64,13 @@ class ReadinessCalculationViewModel {
         for dayOffset in 0..<days {
             if Task.isCancelled { break }
             let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
+            let currentIndex = dayOffset + 1
+            let progress = Double(currentIndex) / Double(max(days, 1))
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .medium
+            dateFormatter.timeStyle = .none
+            let dateString = dateFormatter.string(from: date)
+            progressCallback?(progress * 0.99, "Calculating \(dateString) (\(currentIndex)/\(days))…")
             
             do {
                 if let score = try await readinessService.recalculateReadinessForDate(date) {
@@ -71,6 +78,7 @@ class ReadinessCalculationViewModel {
                 }
             } catch {
                 errors.append(error)
+                progressCallback?(progress * 0.99, "Skipped \(dateString) due to error: \(error.localizedDescription)")
                 // Continue with next day even if there was an error
             }
         }
@@ -81,6 +89,7 @@ class ReadinessCalculationViewModel {
         }
         
         // Return all successfully calculated scores
+        progressCallback?(1.0, "Historical recalculation complete")
         return results
     }
     

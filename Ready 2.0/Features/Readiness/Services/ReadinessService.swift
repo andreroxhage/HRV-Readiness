@@ -675,8 +675,12 @@ class ReadinessService {
             }
             
             // Update progress
-            let progress = 0.7 + (Double(index) / Double(totalDays)) * 0.2
-            progressCallback(progress, "Processed \(index + 1) of \(totalDays) days")
+            let progress = 0.7 + (Double(index) / Double(max(totalDays, 1))) * 0.2
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .medium
+            dateFormatter.timeStyle = .none
+            let dateString = dateFormatter.string(from: dayData.date)
+            progressCallback(progress, "Processed \(index + 1)/\(totalDays): \(dateString)")
         }
         
         progressCallback(0.9, "Calculating readiness scores...")
@@ -700,7 +704,7 @@ class ReadinessService {
         
         var calculatedScores = 0
         
-        for metrics in allMetrics {
+        for (index, metrics) in allMetrics.enumerated() {
             if Task.isCancelled { throw CancellationError() }
             guard let date = metrics.date else { continue }
             
@@ -712,6 +716,12 @@ class ReadinessService {
                 print("⚠️ READINESS: Failed to calculate score for \(date): \(error)")
                 continue
             }
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateStyle = .medium
+            dateFormatter.timeStyle = .none
+            let dateString = dateFormatter.string(from: date)
+            let progress = Double(index + 1) / Double(max(allMetrics.count, 1))
+            print("📈 READINESS: Progress \(Int(progress * 100))% - Calculated \(dateString) (\(index + 1)/\(allMetrics.count))")
         }
         
         print("✅ READINESS: Recalculated \(calculatedScores) historical scores")

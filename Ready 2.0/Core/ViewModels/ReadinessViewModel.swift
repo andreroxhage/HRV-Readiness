@@ -485,7 +485,12 @@ class ReadinessViewModel: ObservableObject {
         activeOperationTask = Task { [weak self] in
             guard let self = self else { return }
             do {
-                let scores = try await self.calculationViewModel.recalculateHistoricalReadiness(days: days)
+                let scores = try await self.calculationViewModel.recalculateHistoricalReadiness(days: days) { [weak self] progress, status in
+                    Task { @MainActor in
+                        self?.initialSetupProgress = progress
+                        self?.initialSetupStatus = status
+                    }
+                }
                 await MainActor.run {
                     self.pastScores = scores
                     self.isLoading = false
@@ -493,6 +498,7 @@ class ReadinessViewModel: ObservableObject {
                 }
             } catch is CancellationError {
                 await MainActor.run {
+                    self.initialSetupStatus = "Cancelled"
                     self.isLoading = false
                 }
             } catch let error as ReadinessError {
