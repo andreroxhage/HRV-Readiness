@@ -108,6 +108,7 @@ class ReadinessSettingsManager: ObservableObject {
         useRHRAdjustment = userDefaultsManager.useRHRAdjustment
         useSleepAdjustment = userDefaultsManager.useSleepAdjustment
         minimumDaysForBaseline = userDefaultsManager.minimumDaysForBaseline
+        morningEndHour = userDefaultsManager.morningEndHour
         
         hasUnsavedChanges = false
         print("🔄 SETTINGS: Discarded unsaved changes")

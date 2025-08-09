@@ -559,19 +559,23 @@ class ReadinessViewModel: ObservableObject {
     }
     
     var baselineDataStatus: String {
-        let daysAvailable = readinessService.getReadinessScoresForPastDays(baselinePeriod.rawValue).count
+        // Count valid HRV days within period prior to today, aligned with baseline rules
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let (periodStart, _) = baselinePeriod.dateRange(from: todayStart)
+        let metrics = readinessService.storageService.getHealthMetrics(from: periodStart, to: todayStart)
+        let validHRVDays = metrics.map { $0.hrv }.filter { $0 >= 10 }.count
         let minDays = readinessService.minimumDaysForBaseline
-        
-        if daysAvailable < minDays {
-            return "Need at least \(minDays) days of data for baseline (have \(daysAvailable))"
-        } else {
-            return "Baseline established with \(daysAvailable) days of data"
-        }
+        return validHRVDays < minDays ?
+            "Need at least \(minDays) valid HRV days (have \(validHRVDays))" :
+            "Baseline established with \(validHRVDays) valid HRV days"
     }
     
     var hasBaselineData: Bool {
-        let daysAvailable = readinessService.getReadinessScoresForPastDays(baselinePeriod.rawValue).count
-        return daysAvailable >= readinessService.minimumDaysForBaseline
+        let todayStart = Calendar.current.startOfDay(for: Date())
+        let (periodStart, _) = baselinePeriod.dateRange(from: todayStart)
+        let metrics = readinessService.storageService.getHealthMetrics(from: periodStart, to: todayStart)
+        let validHRVDays = metrics.map { $0.hrv }.filter { $0 >= 10 }.count
+        return validHRVDays >= readinessService.minimumDaysForBaseline
     }
     
     // MARK: - Color Management

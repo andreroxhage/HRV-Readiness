@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AdvancedSettingsView: View {
     @ObservedObject var viewModel: ReadinessViewModel
-    @AppStorage("minimumDaysForBaseline") private var minimumDaysForBaseline: Int = 3
+    @ObservedObject var settingsManager: ReadinessSettingsManager
     @State private var daysToRecalculate: Int = 7
     @State private var isRecalculating: Bool = false
     @State private var showingDatePicker: Bool = false
@@ -14,23 +14,15 @@ struct AdvancedSettingsView: View {
     var body: some View {
         List {
             Section {
-                Stepper(value: $minimumDaysForBaseline, in: 1...10) {
+                Stepper(value: $settingsManager.minimumDaysForBaseline, in: 1...10) {
                     HStack {
                         Text("Minimum Days for Baseline")
                         Spacer()
-                        Text("\(minimumDaysForBaseline) days")
+                        Text("\(settingsManager.minimumDaysForBaseline) days")
                             .foregroundStyle(.secondary)
                     }
                 }
-                .onChange(of: minimumDaysForBaseline) {
-                    // Update UserDefaults - will be picked up by ReadinessService
-                    UserDefaults.standard.set(minimumDaysForBaseline, forKey: "minimumDaysForBaseline")
-                    
-                    // Trigger recalculation if needed
-                    if viewModel.hasBaselineData {
-                        viewModel.recalculateReadiness()
-                    }
-                }
+                // Changes are now tracked by ReadinessSettingsManager; user must Save in parent Settings view
             } header: {
                 Text("Baseline Calculation")
             } footer: {
@@ -45,7 +37,7 @@ struct AdvancedSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 
-                Button(action: {
+                 Button(action: {
                     isRecalculating = true
                     viewModel.startRecalculateAllPastScores(days: daysToRecalculate)
                 }) {
@@ -287,6 +279,6 @@ struct BaselineDetailView: View {
 
 #Preview {
     NavigationView {
-        AdvancedSettingsView(viewModel: ReadinessViewModel())
+        AdvancedSettingsView(viewModel: ReadinessViewModel(), settingsManager: ReadinessSettingsManager())
     }
-} 
+}

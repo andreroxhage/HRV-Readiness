@@ -122,7 +122,7 @@ struct SettingsView: View {
                 
                 // Advanced Settings
                 Section {
-                    NavigationLink(destination: AdvancedSettingsView(viewModel: viewModel)) {
+                    NavigationLink(destination: AdvancedSettingsView(viewModel: viewModel, settingsManager: settingsManager)) {
                         HStack {
                             Image(systemName: "gear")
                                 .foregroundStyle(.blue)
@@ -156,7 +156,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Data Sources")
                 } footer: {
-                    Text("Manage what health data Ready can access from the Health app. HRV, resting heart rate, and sleep data are required for readiness calculations.")
+                    Text("Manage what health data Ready can access from the Health app. HRV is required to calculate readiness. Resting heart rate and sleep are optional adjustments.")
                 }
                 
                 // About Section
