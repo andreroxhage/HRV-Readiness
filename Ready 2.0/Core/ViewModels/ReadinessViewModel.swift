@@ -56,6 +56,9 @@ class ReadinessViewModel: ObservableObject {
     // Debouncing for expensive recalculations
     private var recalculationTimer: Timer?
     
+    // Active long-running operation for cooperative cancellation
+    private var activeOperationTask: Task<Void, Never>?
+    
     // MARK: - Initialization
     
     init(readinessService: ReadinessService = ReadinessService.shared,
@@ -423,12 +426,87 @@ class ReadinessViewModel: ObservableObject {
             await loadTodaysReadinessScore()
             await loadPastScores()
             
+        } catch is CancellationError {
+            self.initialSetupStatus = "Cancelled"
         } catch {
             self.error = error as? ReadinessError ?? .unknownError(error)
             print("❌ VIEWMODEL: Initial data import failed: \(error)")
         }
         
         isPerformingInitialSetup = false
+    }
+
+    // MARK: - Manual Historical Import & Backfill (Debug/Advanced)
+    @MainActor
+    func startHistoricalImportAndBackfill() {
+        isPerformingInitialSetup = true
+        initialSetupProgress = 0.0
+        initialSetupStatus = "Preparing to import historical data..."
+        
+        activeOperationTask?.cancel()
+        activeOperationTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                try await self.readinessService.performInitialDataImportAndSetup { [weak self] progress, status in
+                    Task { @MainActor in
+                        self?.initialSetupProgress = progress
+                        self?.initialSetupStatus = status
+                    }
+                }
+                await self.loadTodaysReadinessScore()
+                await self.loadPastScores()
+            } catch is CancellationError {
+                await MainActor.run {
+                    self.initialSetupStatus = "Cancelled"
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error as? ReadinessError ?? .unknownError(error)
+                }
+            }
+            await MainActor.run {
+                self.isPerformingInitialSetup = false
+            }
+        }
+    }
+
+    @MainActor
+    func cancelActiveOperation() {
+        initialSetupStatus = "Cancelling..."
+        activeOperationTask?.cancel()
+    }
+
+    @MainActor
+    func startRecalculateAllPastScores(days: Int = 30) {
+        isLoading = true
+        error = nil
+        
+        activeOperationTask?.cancel()
+        activeOperationTask = Task { [weak self] in
+            guard let self = self else { return }
+            do {
+                let scores = try await self.calculationViewModel.recalculateHistoricalReadiness(days: days)
+                await MainActor.run {
+                    self.pastScores = scores
+                    self.isLoading = false
+                    Task { await self.loadTodaysReadinessScore() }
+                }
+            } catch is CancellationError {
+                await MainActor.run {
+                    self.isLoading = false
+                }
+            } catch let error as ReadinessError {
+                await MainActor.run {
+                    self.error = error
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = .unknownError(error)
+                    self.isLoading = false
+                }
+            }
+        }
     }
     
     // MARK: - UI Helper Properties

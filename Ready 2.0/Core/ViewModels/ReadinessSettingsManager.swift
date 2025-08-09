@@ -19,6 +19,7 @@ class ReadinessSettingsManager: ObservableObject {
     @Published var useRHRAdjustment: Bool
     @Published var useSleepAdjustment: Bool
     @Published var minimumDaysForBaseline: Int
+    @Published var morningEndHour: Int
     
     // MARK: - State Management
     
@@ -43,6 +44,7 @@ class ReadinessSettingsManager: ObservableObject {
         self.useRHRAdjustment = userDefaultsManager.useRHRAdjustment
         self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
         self.minimumDaysForBaseline = userDefaultsManager.minimumDaysForBaseline
+        self.morningEndHour = userDefaultsManager.morningEndHour
         
         // Monitor changes to published properties
         setupChangeDetection()
@@ -59,6 +61,7 @@ class ReadinessSettingsManager: ObservableObject {
             $useSleepAdjustment
         )
         .combineLatest($minimumDaysForBaseline)
+        .combineLatest($morningEndHour)
         .dropFirst() // Ignore initial values
         .sink { [weak self] _ in
             self?.hasUnsavedChanges = true
@@ -147,6 +150,10 @@ class ReadinessSettingsManager: ObservableObject {
             changeTypes.insert(.minimumDays)
         }
         
+        if morningEndHour != userDefaultsManager.morningEndHour {
+            changeTypes.insert(.morningEndHour)
+        }
+        
         return ReadinessSettingsChange(
             types: changeTypes,
             previousValues: SettingsValues(
@@ -154,14 +161,16 @@ class ReadinessSettingsManager: ObservableObject {
                 period: userDefaultsManager.baselinePeriod,
                 rhrEnabled: userDefaultsManager.useRHRAdjustment,
                 sleepEnabled: userDefaultsManager.useSleepAdjustment,
-                minimumDays: userDefaultsManager.minimumDaysForBaseline
+                minimumDays: userDefaultsManager.minimumDaysForBaseline,
+                morningEndHour: userDefaultsManager.morningEndHour
             ),
             newValues: SettingsValues(
                 mode: readinessMode,
                 period: baselinePeriod,
                 rhrEnabled: useRHRAdjustment,
                 sleepEnabled: useSleepAdjustment,
-                minimumDays: minimumDaysForBaseline
+                minimumDays: minimumDaysForBaseline,
+                morningEndHour: morningEndHour
             )
         )
     }
@@ -177,6 +186,7 @@ class ReadinessSettingsManager: ObservableObject {
                 self.userDefaultsManager.useRHRAdjustment = self.useRHRAdjustment
                 self.userDefaultsManager.useSleepAdjustment = self.useSleepAdjustment
                 self.userDefaultsManager.minimumDaysForBaseline = self.minimumDaysForBaseline
+                self.userDefaultsManager.morningEndHour = self.morningEndHour
             }
         }.value
     }
@@ -201,7 +211,7 @@ struct ReadinessSettingsChange {
     }
     
     var requiresCurrentRecalculation: Bool {
-        types.contains(.readinessMode) || requiresHistoricalRecalculation
+        types.contains(.readinessMode) || types.contains(.morningEndHour) || requiresHistoricalRecalculation
     }
 }
 
@@ -211,6 +221,7 @@ enum SettingsChangeType: CaseIterable {
     case rhrAdjustment
     case sleepAdjustment
     case minimumDays
+    case morningEndHour
 }
 
 struct SettingsValues {
@@ -219,4 +230,5 @@ struct SettingsValues {
     let rhrEnabled: Bool
     let sleepEnabled: Bool
     let minimumDays: Int
+    let morningEndHour: Int
 } 

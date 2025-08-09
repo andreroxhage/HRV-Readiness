@@ -33,15 +33,40 @@ struct SettingsView: View {
                         .pickerStyle(.segmented)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
                         
-                        // Mode description
-                        HStack {
-                            Image(systemName: settingsManager.readinessMode == .morning ? "sunrise" : "clock.arrow.circlepath")
-                                .foregroundStyle(settingsManager.readinessMode == .morning ? .orange : .blue)
-                                .symbolEffect(.pulse, options: .repeating, value: settingsManager.readinessMode)
+                        // Mode description and morning end-hour config
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: settingsManager.readinessMode == .morning ? "sunrise" : "clock.arrow.circlepath")
+                                    .foregroundStyle(settingsManager.readinessMode == .morning ? .orange : .blue)
+                                    .symbolEffect(.pulse, options: .repeating, value: settingsManager.readinessMode)
+                                
+                                if settingsManager.readinessMode == .morning {
+                                    Text("Measures HRV during sleep (00:00-\(String(format: "%02d", settingsManager.morningEndHour)):00)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("Measures HRV over the last 6 hours")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                             
-                            Text(settingsManager.readinessMode == .morning ? "Measures HRV during sleep (00:00-10:00)" : "Measures HRV over the last 6 hours")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            if settingsManager.readinessMode == .morning {
+                                HStack {
+                                    Text("Morning window end time")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Picker("Morning End Hour", selection: $settingsManager.morningEndHour) {
+                                        Text("09:00").tag(9)
+                                        Text("10:00").tag(10)
+                                        Text("11:00").tag(11)
+                                        Text("12:00").tag(12)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .disabled(settingsManager.isSaving || viewModel.isLoading)
+                                }
+                            }
                         }
                         .padding(.top, 4)
                     }

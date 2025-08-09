@@ -23,6 +23,7 @@ class UserDefaultsManager {
         static let useRHRAdjustment = "useRHRAdjustment"
         static let useSleepAdjustment = "useSleepAdjustment"
         static let minimumDaysForBaseline = "minimumDaysForBaseline"
+        static let morningEndHour = "morningEndHour"
         static let hasCompletedOnboarding = "hasCompletedOnboarding"
         static let initialDataImportCompleted = "initialDataImportCompleted"
         static let lastCalculationTime = "lastCalculationTime"
@@ -38,6 +39,7 @@ class UserDefaultsManager {
         static let useRHRAdjustment = false // Changed to false - RHR adjustment is optional
         static let useSleepAdjustment = false // Changed to false - sleep adjustment is optional
         static let minimumDaysForBaseline = 3
+        static let morningEndHour = 11 // Configurable morning window end hour (09-12), default 11:00
         static let hasCompletedOnboarding = false
     }
     
@@ -75,6 +77,10 @@ class UserDefaultsManager {
         
         if !userDefaults.contains(key: Keys.minimumDaysForBaseline) {
             userDefaults.set(Defaults.minimumDaysForBaseline, forKey: Keys.minimumDaysForBaseline)
+        }
+
+        if !userDefaults.contains(key: Keys.morningEndHour) {
+            userDefaults.set(Defaults.morningEndHour, forKey: Keys.morningEndHour)
         }
     }
     
@@ -137,6 +143,22 @@ class UserDefaultsManager {
         }
         set {
             userDefaults.set(newValue, forKey: Keys.minimumDaysForBaseline)
+        }
+    }
+
+    /// Morning end hour for Morning mode time window.
+    /// Clamped to 9-12 inclusive. Default 11 when not set.
+    var morningEndHour: Int {
+        get {
+            let stored = userDefaults.integer(forKey: Keys.morningEndHour)
+            let value = stored != 0 ? stored : Defaults.morningEndHour
+            return min(max(value, 9), 12)
+        }
+        set {
+            let clamped = min(max(newValue, 9), 12)
+            userDefaults.set(clamped, forKey: Keys.morningEndHour)
+            // Mirror to app group in case widget needs to reference it later
+            appGroupDefaults?.set(clamped, forKey: Keys.morningEndHour)
         }
     }
     

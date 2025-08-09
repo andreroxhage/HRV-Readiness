@@ -116,15 +116,18 @@ class BackgroundTaskManager {
         
         let request = BGAppRefreshTaskRequest(identifier: Self.refreshIdentifier)
         
-        // Schedule for early morning (6 AM next day)
+        // Schedule for early morning (~6 AM next day)
         let calendar = Calendar.current
         let now = Date()
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now)!
-        let morningTime = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: tomorrow)!
+        // Compute next 6 AM local time by advancing to tomorrow's 6:00
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        let morningTime = calendar.date(bySettingHour: 6, minute: 0, second: 0, of: calendar.startOfDay(for: tomorrow)) ?? now
         
         request.earliestBeginDate = morningTime
         
         do {
+            // Cancel any existing queued task with same identifier to avoid duplicates if API permits
+            // Note: iOS may coalesce requests; we rely on single identifier semantics.
             try BGTaskScheduler.shared.submit(request)
             print("✅ BACKGROUND: Successfully scheduled app refresh for \(morningTime)")
         } catch {

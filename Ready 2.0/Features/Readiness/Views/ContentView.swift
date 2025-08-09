@@ -12,9 +12,7 @@ import UIKit
 
 struct ContentView: View {
     @ObservedObject var viewModel: ReadinessViewModel
-    @AppStorage("readinessMode") private var readinessMode: String = "morning"
     @State private var showingInfo = false
-    @State private var previousMode: String = ""
     @State private var showingSettings = false
     @Environment(\.appearanceViewModel) private var appearanceViewModel
     
@@ -229,11 +227,6 @@ struct ContentView: View {
                 // First check if we need to perform initial setup
                 await viewModel.checkAndPerformInitialSetup()
                 
-                // Then sync @AppStorage with viewModel's current mode on app launch
-                if readinessMode != viewModel.readinessMode.rawValue {
-                    readinessMode = viewModel.readinessMode.rawValue
-                }
-                previousMode = readinessMode
                 fetchHealthData()
             }
         }
@@ -248,11 +241,9 @@ struct ContentView: View {
         Task { @MainActor in
             isLoading = true
             
-            // Debug current settings from multiple sources
+            // Debug current settings (source of truth is ViewModel/UserDefaultsManager)
             print("🔄 CONTENT: Starting health data fetch")
             print("⚙️ CONTENT: ViewModel settings - RHR: \(viewModel.useRHRAdjustment), Sleep: \(viewModel.useSleepAdjustment)")
-            print("⚙️ CONTENT: UserDefaults direct - RHR: \(UserDefaults.standard.bool(forKey: "useRHRAdjustment")), Sleep: \(UserDefaults.standard.bool(forKey: "useSleepAdjustment"))")
-            print("⚙️ CONTENT: AppStorage values - RHR: \(UserDefaults.standard.object(forKey: "useRHRAdjustment") ?? "not set"), Sleep: \(UserDefaults.standard.object(forKey: "useSleepAdjustment") ?? "not set")")
             
             // Fetch resting heart rate only if RHR adjustment is enabled
             if viewModel.useRHRAdjustment {

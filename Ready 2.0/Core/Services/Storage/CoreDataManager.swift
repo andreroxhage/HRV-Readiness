@@ -120,6 +120,20 @@ class CoreDataManager {
         }
     }
     
+    // Fetch HealthMetrics within a specific date interval [startDate, endDate)
+    func getHealthMetrics(from startDate: Date, to endDate: Date) -> [HealthMetrics] {
+        let fetchRequest: NSFetchRequest<HealthMetrics> = HealthMetrics.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate)
+        fetchRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+        
+        do {
+            return try viewContext.fetch(fetchRequest)
+        } catch {
+            print("Error fetching health metrics between dates: \(error)")
+            return []
+        }
+    }
+    
     // MARK: - Readiness Score Operations
     
     func saveReadinessScore(date: Date, score: Double, hrvBaseline: Double, hrvDeviation: Double, readinessCategory: String, rhrAdjustment: Double, sleepAdjustment: Double, readinessMode: String, baselinePeriod: Int, healthMetrics: HealthMetrics) -> ReadinessScore {

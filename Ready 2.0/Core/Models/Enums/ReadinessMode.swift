@@ -12,7 +12,8 @@ enum ReadinessMode: String {
     var description: String {
         switch self {
         case .morning:
-            return "Morning Readiness (00:00-11:00)"
+            let endHour = UserDefaultsManager.shared.morningEndHour
+            return "Morning Readiness (00:00-\(String(format: "%02d", endHour)):00)"
         case .rolling:
             return "Rolling Readiness (Last 6 hours)"
         }
@@ -46,21 +47,18 @@ enum ReadinessMode: String {
         switch self {
         case .morning:
             let today = calendar.startOfDay(for: now)
-            // Extended morning window to 11:00 AM to be more inclusive
-            let end = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: today) ?? today
-            
-            print("🕐 READINESS_MODE: Morning mode - today start: \(today), end: \(end)")
+            let endHour = UserDefaultsManager.shared.morningEndHour
+            let end = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: today) ?? today
+
+            print("🕐 READINESS_MODE: Morning mode - today start: \(today), end: \(end) (endHour=\(endHour))")
             print("🕐 READINESS_MODE: Current time: \(now), hour: \(calendar.component(.hour, from: now))")
-            
-            // If it's after 11 AM, use today's full morning window
-            // If it's before 11 AM, use current time as end to get most recent data
-            if calendar.component(.hour, from: now) < 11 {
-                // Before 11 AM - end time is current time to get latest data
-                print("🕐 READINESS_MODE: Before 11 AM, using current time as end")
+
+            // If it's before endHour, use current time as end to get latest data; otherwise use full window
+            if calendar.component(.hour, from: now) < endHour {
+                print("🕐 READINESS_MODE: Before \(endHour), using current time as end")
                 return (today, now)
             } else {
-                // After 11 AM - use standard extended morning window
-                print("🕐 READINESS_MODE: After 11 AM, using full morning window")
+                print("🕐 READINESS_MODE: After \(endHour), using full morning window")
                 return (today, end)
             }
             
@@ -78,8 +76,8 @@ enum ReadinessMode: String {
         
         switch self {
         case .morning:
-            // Extended to 11:00 AM for more inclusive morning window
-            let end = calendar.date(bySettingHour: 11, minute: 0, second: 0, of: startOfDay) ?? startOfDay
+            let endHour = UserDefaultsManager.shared.morningEndHour
+            let end = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: startOfDay) ?? startOfDay
             return (startOfDay, end)
             
         case .rolling:

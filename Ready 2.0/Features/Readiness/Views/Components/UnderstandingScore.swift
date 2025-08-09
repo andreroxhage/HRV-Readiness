@@ -138,7 +138,7 @@ struct ScoreInfoOverlay: View {
                                     Text("Morning Mode")
                                         .font(.subheadline)
                                         .bold()
-                                    Text("Uses HRV data from 00:00-10:00, ideal for consistent morning assessment")
+                                    Text("Uses HRV data from 00:00-\(String(format: "%02d", UserDefaultsManager.shared.morningEndHour)):00, ideal for consistent morning assessment")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }

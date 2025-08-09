@@ -47,8 +47,7 @@ struct AdvancedSettingsView: View {
                 
                 Button(action: {
                     isRecalculating = true
-                    viewModel.recalculateAllPastScores(days: daysToRecalculate)
-                    // The viewModel will set isLoading=false when complete
+                    viewModel.startRecalculateAllPastScores(days: daysToRecalculate)
                 }) {
                     HStack {
                         if viewModel.isLoading && isRecalculating {
@@ -84,6 +83,27 @@ struct AdvancedSettingsView: View {
                     }
                 }
                 .disabled(viewModel.isLoading)
+
+                Button(action: {
+                    viewModel.startHistoricalImportAndBackfill()
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.down.circle")
+                        Text("Re-run Initial Import & Backfill (90 days)")
+                    }
+                }
+                .disabled(viewModel.isLoading)
+
+                if viewModel.isLoading || viewModel.isPerformingInitialSetup {
+                    Button(role: .destructive) {
+                        viewModel.cancelActiveOperation()
+                    } label: {
+                        HStack {
+                            Image(systemName: "xmark.circle")
+                            Text("Cancel Ongoing Operation")
+                        }
+                    }
+                }
                 
                 if let error = viewModel.error {
                     VStack(alignment: .leading, spacing: 8) {
@@ -106,32 +126,9 @@ struct AdvancedSettingsView: View {
             } header: {
                 Text("Data Recalculation")
             } footer: {
-                Text("Recalculate past readiness scores based on health data. Useful if you've manually added data in the Health app after the fact.")
+                Text("Recalculate past readiness scores based on health data, or re-run the full 90-day import & backfill. Useful after manual edits in the Health app.")
             }
-            
-            Section {
-                NavigationLink(destination: DataDebugView(viewModel: viewModel)) {
-                    HStack {
-                        Image(systemName: "waveform.path.ecg")
-                            .foregroundStyle(.gray)
-                        Text("Debug Health Data")
-                        Spacer()
-                    }
-                }
-                
-                NavigationLink(destination: BaselineDetailView(viewModel: viewModel)) {
-                    HStack {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
-                            .foregroundStyle(.gray)
-                        Text("Baseline Details")
-                        Spacer()
-                    }
-                }
-            } header: {
-                Text("Advanced Data")
-            } footer: {
-                Text("View detailed information about your health data and baseline calculations.")
-            }
+
         }
         .navigationTitle("Advanced Settings")
         .sheet(isPresented: $showingDatePicker) {

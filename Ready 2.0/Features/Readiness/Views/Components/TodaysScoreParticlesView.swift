@@ -4,7 +4,6 @@ import UIKit
 struct TodaysScoreParticlesView: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @Environment(\.appearanceViewModel) private var appearanceViewModel
-    @AppStorage("readinessMode") private var readinessMode: String = "morning"
     @State private var isAnimating = false
     @State private var isTapped = false
     

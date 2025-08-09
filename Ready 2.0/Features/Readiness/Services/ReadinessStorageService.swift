@@ -97,6 +97,10 @@ class ReadinessStorageService {
         
         return metrics
     }
+
+    func getHealthMetrics(from startDate: Date, to endDate: Date) -> [HealthMetrics] {
+        return coreDataManager.getHealthMetrics(from: startDate, to: endDate)
+    }
     
     // MARK: - Utility Methods
     

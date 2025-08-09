@@ -161,25 +161,28 @@ class ReadinessService {
             )
         }
         
-        // Calculate scores using the main calculation method
-        let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScore(
+        // Calculate scores using as-of baselines (exclude this date from baseline window)
+        let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScoreForDate(
             hrv: existingMetrics.hrv,
             restingHeartRate: existingMetrics.restingHeartRate,
-            sleepHours: existingMetrics.sleepHours
+            sleepHours: existingMetrics.sleepHours,
+            date: date
         )
         
-        // Update or create score
+        // Update or create score (idempotent update)
         if let existingScore = storageService.getReadinessScoreForDate(date) {
-            existingScore.score = score
-            existingScore.hrvBaseline = hrvBaseline
-            existingScore.hrvDeviation = hrvDeviation
-            existingScore.readinessCategory = category.rawValue
-            existingScore.rhrAdjustment = rhrAdjustment
-            existingScore.sleepAdjustment = sleepAdjustment
-            existingScore.readinessMode = readinessMode.rawValue
-            existingScore.baselinePeriod = Int16(baselinePeriod.rawValue)
-            existingScore.calculationTimestamp = Date()
-            storageService.saveContext()
+            if scoreDataChanged(existingScore, score, category, hrvBaseline) || abs(existingScore.rhrAdjustment - rhrAdjustment) > 0.001 || abs(existingScore.sleepAdjustment - sleepAdjustment) > 0.001 {
+                existingScore.score = score
+                existingScore.hrvBaseline = hrvBaseline
+                existingScore.hrvDeviation = hrvDeviation
+                existingScore.readinessCategory = category.rawValue
+                existingScore.rhrAdjustment = rhrAdjustment
+                existingScore.sleepAdjustment = sleepAdjustment
+                existingScore.readinessMode = readinessMode.rawValue
+                existingScore.baselinePeriod = Int16(baselinePeriod.rawValue)
+                existingScore.calculationTimestamp = Date()
+                storageService.saveContext()
+            }
             return existingScore
         } else {
             return storageService.saveReadinessScore(
@@ -357,9 +360,134 @@ class ReadinessService {
         
         return (finalScore, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment)
     }
+
+    // Historical calculation using as-of baselines (excludes target date from baseline windows)
+    func calculateReadinessScoreForDate(
+        hrv: Double,
+        restingHeartRate: Double,
+        sleepHours: Double,
+        date: Date
+    ) -> (score: Double, category: ReadinessCategory, hrvBaseline: Double, hrvDeviation: Double, rhrAdjustment: Double, sleepAdjustment: Double) {
+        // As-of HRV baseline
+        let hrvBaseline = calculateHRVBaseline(asOf: date)
+        print("🧮 READINESS: (As-of) Calculating readiness for \(date) with HRV=\(hrv), RHR=\(restingHeartRate), Sleep=\(sleepHours), Baseline=\(hrvBaseline)")
+        print("⚙️ READINESS: Adjustment settings - RHR: \(useRHRAdjustment), Sleep: \(useSleepAdjustment)")
+
+        guard hrvBaseline > 0 else {
+            print("❌ READINESS: No as-of HRV baseline available for \(date)")
+            return (0, .unknown, 0, 0, 0, 0)
+        }
+
+        // HRV deviation and FR-3 mapping
+        let hrvDeviation = ((hrv - hrvBaseline) / hrvBaseline) * 100
+        var baseScore: Double
+        switch hrvDeviation {
+        case ...(-10):
+            let severityFactor = min(abs(hrvDeviation) - 10, 20) / 20
+            baseScore = 29 - (severityFactor * 29)
+        case -10...(-7):
+            let rangePosition = (abs(hrvDeviation) - 7) / 3
+            baseScore = 49 - (rangePosition * 19)
+        case -7...(-3):
+            let rangePosition = (abs(hrvDeviation) - 3) / 4
+            baseScore = 79 - (rangePosition * 29)
+        case -3...3:
+            let deviationFromPerfect = abs(hrvDeviation) / 3
+            baseScore = 100 - (deviationFromPerfect * 20)
+        case 10...:
+            let bonusFactor = min((hrvDeviation - 10) / 10, 1.0)
+            baseScore = 90 + (bonusFactor * 10)
+        default:
+            let rangePosition = (hrvDeviation - 3) / 7
+            baseScore = 80 + (rangePosition * 10)
+        }
+
+        // Adjustments
+        var rhrAdjustment: Double = 0
+        var sleepAdjustment: Double = 0
+
+        if useRHRAdjustment {
+            let rhrBaseline = calculateRHRBaseline(asOf: date)
+            if rhrBaseline > 0, restingHeartRate > (rhrBaseline + 5) {
+                rhrAdjustment = -10.0
+            }
+        }
+
+        if useSleepAdjustment {
+            if sleepHours > 0, sleepHours < 6.0 {
+                sleepAdjustment = -15.0
+            }
+        }
+
+        var finalScore = baseScore + rhrAdjustment + sleepAdjustment
+        finalScore = min(max(finalScore, 0), 100)
+        let category = ReadinessCategory.forScore(finalScore)
+
+        return (finalScore, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment)
+    }
     
     // MARK: - Baseline Calculations
     
+    /// As-of HRV baseline using only data strictly before the given date's start of day
+    func calculateHRVBaseline(asOf date: Date) -> Double {
+        let calendar = Calendar.current
+        let end = calendar.startOfDay(for: date)
+        let (start, _) = baselinePeriod.dateRange(from: end)
+        print("📊 READINESS: Calculating HRV baseline as-of \(end) using period start \(start), min required: \(minimumDaysForBaseline)")
+
+        let metrics = storageService.getHealthMetrics(from: start, to: end)
+        let valid = metrics.map { $0.hrv }.filter { $0 >= 10 }
+
+        guard valid.count >= minimumDaysForBaseline else {
+            print("❌ READINESS: Not enough valid HRV values as-of \(end) (\(valid.count) < \(minimumDaysForBaseline))")
+            return 0
+        }
+
+        let avg = valid.reduce(0, +) / Double(valid.count)
+        print("🎯 READINESS: As-of HRV baseline: \(avg) ms from \(valid.count) values")
+        return avg
+    }
+
+    /// As-of RHR baseline using only data strictly before the given date's start of day
+    func calculateRHRBaseline(asOf date: Date) -> Double {
+        let calendar = Calendar.current
+        let end = calendar.startOfDay(for: date)
+        let (start, _) = baselinePeriod.dateRange(from: end)
+        print("💓 READINESS: Calculating RHR baseline as-of \(end) using period start \(start), min required: \(minimumDaysForBaseline)")
+
+        let metrics = storageService.getHealthMetrics(from: start, to: end)
+        let valid = metrics.map { $0.restingHeartRate }.filter { $0 >= 30 && $0 <= 120 }
+
+        guard valid.count >= minimumDaysForBaseline else {
+            print("❌ READINESS: Not enough valid RHR values as-of \(end) (\(valid.count) < \(minimumDaysForBaseline))")
+            return 0
+        }
+
+        let avg = valid.reduce(0, +) / Double(valid.count)
+        print("🎯 READINESS: As-of RHR baseline: \(avg) bpm from \(valid.count) values")
+        return avg
+    }
+
+    /// As-of sleep baseline using only data strictly before the given date's start of day
+    func calculateSleepBaseline(asOf date: Date) -> Double {
+        let calendar = Calendar.current
+        let end = calendar.startOfDay(for: date)
+        let (start, _) = baselinePeriod.dateRange(from: end)
+        print("😴 READINESS: Calculating sleep baseline as-of \(end) using period start \(start), min required: \(minimumDaysForBaseline)")
+
+        let metrics = storageService.getHealthMetrics(from: start, to: end)
+        let valid = metrics.map { $0.sleepHours }.filter { $0 > 0 && $0 <= 12 }
+
+        guard valid.count >= minimumDaysForBaseline else {
+            print("❌ READINESS: Not enough valid sleep values as-of \(end) (\(valid.count) < \(minimumDaysForBaseline))")
+            return 0
+        }
+
+        let avg = valid.reduce(0, +) / Double(valid.count)
+        print("🎯 READINESS: As-of sleep baseline: \(avg) h from \(valid.count) values")
+        return avg
+    }
+
     func calculateHRVBaseline() -> Double {
         let days = baselinePeriod.rawValue
         print("📊 READINESS: Calculating HRV baseline using \(days) days, minimum required: \(minimumDaysForBaseline)")
@@ -490,6 +618,7 @@ class ReadinessService {
         let allMetrics = storageService.getHealthMetricsForPastDays(90) // Get up to 1 year
         
         for metrics in allMetrics {
+            if Task.isCancelled { throw CancellationError() }
             guard let date = metrics.date else { continue }
             
             // Check if this data meets minimum requirements (at least HRV)
@@ -524,6 +653,10 @@ class ReadinessService {
         let totalDays = historicalData.count
         
         for (index, dayData) in historicalData.enumerated() {
+            if Task.isCancelled {
+                progressCallback(Double(index) / Double(max(totalDays, 1)), "Cancelled after processing \(index) of \(totalDays) days")
+                throw CancellationError()
+            }
             // Only save if we have at least HRV data
             if let hrv = dayData.hrv, hrv >= 10 {
                 let rhr = dayData.rhr ?? 0
@@ -568,6 +701,7 @@ class ReadinessService {
         var calculatedScores = 0
         
         for metrics in allMetrics {
+            if Task.isCancelled { throw CancellationError() }
             guard let date = metrics.date else { continue }
             
             do {
@@ -661,6 +795,10 @@ class ReadinessService {
         // Process and save the historical data
         var savedDays = 0
         for dayData in historicalData {
+            if Task.isCancelled {
+                progressCallback(0.85, "Cancelled during saving imported data")
+                throw CancellationError()
+            }
             // Only save if we have at least HRV data
             if let hrv = dayData.hrv, hrv >= 10 {
                 let rhr = dayData.rhr ?? 0
@@ -690,24 +828,24 @@ class ReadinessService {
         
         print("📈 READINESS: Found \(validMetrics.count) days with valid HRV data")
         
-        // Only calculate readiness scores for days where we have sufficient baseline data
+        // Only calculate readiness scores for days where we have sufficient as-of baseline data
         var calculatedScores = 0
         for (index, metrics) in validMetrics.enumerated() {
+            if Task.isCancelled {
+                progressCallback(0.95, "Cancelled during readiness calculation at day \(index + 1) of \(validMetrics.count)")
+                throw CancellationError()
+            }
             guard let date = metrics.date else { continue }
             
-            // Check if we have enough preceding data for a baseline (at least minimumDaysForBaseline days before this date)
-            let precedingData = validMetrics.prefix(index).filter { precedingMetric in
-                guard let precedingDate = precedingMetric.date else { return false }
-                let daysBetween = Calendar.current.dateComponents([.day], from: precedingDate, to: date).day ?? 0
-                return daysBetween >= 0 && daysBetween <= currentBaselinePeriod
-            }
-            
-            if precedingData.count >= minimumDaysForBaseline {
-                // Calculate readiness score for this date
-                let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScore(
+            // Calculate as-of baseline first; skip if insufficient
+            let asOfHRVBaseline = calculateHRVBaseline(asOf: date)
+            if asOfHRVBaseline > 0 {
+                // Calculate readiness score for this date using as-of baselines
+                let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScoreForDate(
                     hrv: metrics.hrv,
                     restingHeartRate: metrics.restingHeartRate,
-                    sleepHours: metrics.sleepHours
+                    sleepHours: metrics.sleepHours,
+                    date: date
                 )
                 
                 // Save the readiness score

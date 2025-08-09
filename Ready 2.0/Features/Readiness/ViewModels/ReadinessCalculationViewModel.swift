@@ -62,6 +62,7 @@ class ReadinessCalculationViewModel {
         
         // Iterate through each day
         for dayOffset in 0..<days {
+            if Task.isCancelled { break }
             let date = calendar.date(byAdding: .day, value: -dayOffset, to: today)!
             
             do {
