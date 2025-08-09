@@ -34,8 +34,10 @@ struct Provider: TimelineProvider {
             sleepHours: 0,
             sleepQuality: 0,
             readinessScore: 0,
-            readinessCategory: "Moderate",
-            readinessMode: "morning"
+            readinessCategory: "Unknown",
+            readinessMode: "morning",
+            readinessEmoji: "❓",
+            readinessDescription: "No data available"
         )
     }
 
@@ -73,29 +75,32 @@ struct Provider: TimelineProvider {
     }
     
     private func getHealthEntry() -> HealthEntry {
-        let defaults = sharedDefaults
-        let readinessScore = defaults?.double(forKey: "readinessScore") ?? 0
-        let readinessCategory = defaults?.string(forKey: "readinessCategory") ?? "Moderate"
-        let readinessMode = defaults?.string(forKey: "readinessMode") ?? "morning"
-        
-        print("Widget reading - HRV: \(defaults?.double(forKey: "lastHRV") ?? 0)")
-        print("Widget reading - Resting Heart Rate: \(defaults?.double(forKey: "lastRestingHeartRate") ?? 0)")
-        print("Widget reading - Sleep Hours: \(defaults?.double(forKey: "lastSleepHours") ?? 0)")
-        print("Widget reading - Sleep Quality: \(defaults?.integer(forKey: "sleepQuality") ?? 0)")
-        print("Widget reading - Readiness Score: \(readinessScore)")
-        print("Widget reading - Readiness Category: \(readinessCategory)")
-        print("Widget reading - Readiness Mode: \(readinessMode)")
-        print("--------------------------------")
+        let d = sharedDefaults
+        // Primary keys (main app + background task writers)
+        let score = d?.double(forKey: "currentReadinessScore") ?? 0
+        let category = d?.string(forKey: "currentReadinessCategory") ?? "Unknown"
+        let emoji = d?.string(forKey: "currentReadinessEmoji") ?? "❓"
+        let description = d?.string(forKey: "currentReadinessDescription") ?? "No data available"
+        // Timestamp key may vary; try both
+        let ts = (d?.object(forKey: "lastUpdateTimestamp") as? Date) ?? (d?.object(forKey: "currentReadinessTimestamp") as? Date) ?? Date()
+        // Optional legacy/extra metrics for secondary displays
+        let hrv = d?.double(forKey: "lastHRV") ?? 0
+        let rhr = d?.double(forKey: "lastRestingHeartRate") ?? 0
+        let sleepH = d?.double(forKey: "lastSleepHours") ?? 0
+        let sleepQ = d?.integer(forKey: "sleepQuality") ?? 0
+        let mode = d?.string(forKey: "readinessMode") ?? "morning"
 
         return HealthEntry(
-            date: defaults?.object(forKey: "lastUpdateTime") as? Date ?? Date(),
-            hrv: defaults?.double(forKey: "lastHRV") ?? 0,
-            restingHeartRate: defaults?.double(forKey: "lastRestingHeartRate") ?? 0,
-            sleepHours: defaults?.double(forKey: "lastSleepHours") ?? 0,
-            sleepQuality: defaults?.integer(forKey: "sleepQuality") ?? 0,
-            readinessScore: readinessScore,
-            readinessCategory: readinessCategory,
-            readinessMode: readinessMode
+            date: ts,
+            hrv: hrv,
+            restingHeartRate: rhr,
+            sleepHours: sleepH,
+            sleepQuality: sleepQ,
+            readinessScore: score,
+            readinessCategory: category,
+            readinessMode: mode,
+            readinessEmoji: emoji,
+            readinessDescription: description
         )
     }
 }
@@ -109,6 +114,8 @@ struct HealthEntry: TimelineEntry {
     let readinessScore: Double
     let readinessCategory: String
     let readinessMode: String
+    let readinessEmoji: String
+    let readinessDescription: String
 }
 
 struct Widget_2_0EntryView: View {
@@ -362,9 +369,12 @@ struct ReadinessWidgetView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            Text("Readiness")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text(entry.readinessEmoji)
+                Text("Readiness")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             
             Text("\(Int(entry.readinessScore))")
                 .font(.system(.title, design: .rounded))
@@ -382,6 +392,12 @@ struct ReadinessWidgetView: View {
                 Text("\(Int(entry.hrv)) ms")
                     .font(.caption2)
             }
+
+            Text(entry.readinessDescription)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
     
