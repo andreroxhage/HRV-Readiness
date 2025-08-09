@@ -141,6 +141,44 @@ class ReadinessServiceTests: XCTestCase {
         XCTAssertNil(coreData.getHealthMetricsForDate(oldDate))
         XCTAssertNil(coreData.getReadinessScoreForDate(oldDate))
     }
+
+    func testFR3ThresholdBoundaries() {
+        // Baseline 100 → HRV values map directly to deviation
+        class BaselineMock: ReadinessService {
+            override func calculateHRVBaseline() -> Double { 100 }
+            override var useRHRAdjustment: Bool { false }
+            override var useSleepAdjustment: Bool { false }
+        }
+        let service = BaselineMock()
+
+        // -3% boundary → 97 → Optimal lower bound
+        var r = service.calculateReadinessScore(hrv: 97, restingHeartRate: 0, sleepHours: 0)
+        XCTAssertEqual(r.category, .optimal)
+        XCTAssertTrue(r.score >= 80 && r.score <= 100)
+
+        // -7% boundary → 93 → Moderate/Low boundary
+        r = service.calculateReadinessScore(hrv: 93, restingHeartRate: 0, sleepHours: 0)
+        XCTAssertEqual(r.category, .moderate)
+        XCTAssertTrue(r.score >= 50 && r.score <= 79)
+
+        // -10% boundary → 90 → Low/Fatigue boundary
+        r = service.calculateReadinessScore(hrv: 90, restingHeartRate: 0, sleepHours: 0)
+        XCTAssertEqual(r.category, .low)
+        XCTAssertTrue(r.score >= 30 && r.score <= 49)
+
+        // < -10% → 80 → Fatigue
+        r = service.calculateReadinessScore(hrv: 80, restingHeartRate: 0, sleepHours: 0)
+        XCTAssertEqual(r.category, .fatigue)
+        XCTAssertTrue(r.score >= 0 && r.score <= 29)
+
+        // +3% boundary → 103 → Optimal
+        r = service.calculateReadinessScore(hrv: 103, restingHeartRate: 0, sleepHours: 0)
+        XCTAssertEqual(r.category, .optimal)
+
+        // +10% boundary → 110 → Supercompensation band (>= 90)
+        r = service.calculateReadinessScore(hrv: 110, restingHeartRate: 0, sleepHours: 0)
+        XCTAssertTrue(r.score >= 90 && r.score <= 100)
+    }
 }
 
 // Mock ReadinessService for testing
