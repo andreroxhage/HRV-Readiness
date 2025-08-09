@@ -6,12 +6,23 @@ struct SettingsView: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @State private var showHealthKitAuth = false
     @State private var showingUnsavedChangesAlert = false
+    @State private var showRecalcPrompt = false
+    @State private var pendingChanges: ReadinessSettingsChange?
     
     init(viewModel: ReadinessViewModel) {
         self.viewModel = viewModel
         self._settingsManager = StateObject(wrappedValue: ReadinessSettingsManager(
             onSettingsChanged: { changes in
-                viewModel.handleSettingsChanges(changes)
+                // Gate heavy historical recomputation behind a prompt
+                if changes.requiresHistoricalRecalculation {
+                    // Store and prompt; Settings view decides what to run
+                    DispatchQueue.main.async {
+                        self.pendingChanges = changes
+                        self.showRecalcPrompt = true
+                    }
+                } else if changes.requiresCurrentRecalculation {
+                    viewModel.handleSettingsChanges(changes)
+                }
             }
         ))
     }
@@ -219,7 +230,10 @@ struct SettingsView: View {
                             Task {
                                 do {
                                     try await settingsManager.saveSettings()
-                                    dismiss()
+                                    // If a heavy recomputation is pending, show prompt and keep view open
+                                    if !showRecalcPrompt {
+                                        dismiss()
+                                    }
                                 } catch {
                                     print("❌ Failed to save settings: \(error)")
                                 }
@@ -232,6 +246,33 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showHealthKitAuth) {
             HealthKitAuthView()
+        }
+        .confirmationDialog(
+            "Recalculate historical scores?",
+            isPresented: $showRecalcPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Run now", role: .none) {
+                // Run current and historical recalculation
+                Task { @MainActor in
+                    await viewModel.recalculateAllScores()
+                    await viewModel.loadTodaysReadinessScore()
+                    showRecalcPrompt = false
+                    pendingChanges = nil
+                    dismiss()
+                }
+            }
+            Button("Later", role: .cancel) {
+                // Only refresh today's score for now
+                Task { @MainActor in
+                    await viewModel.loadTodaysReadinessScore()
+                    showRecalcPrompt = false
+                    pendingChanges = nil
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Changes you made affect historical calculations. You can recalculate past scores now or do it later from Advanced Settings.")
         }
         .alert("Unsaved Changes", isPresented: $showingUnsavedChangesAlert) {
             Button("Discard Changes", role: .destructive) {

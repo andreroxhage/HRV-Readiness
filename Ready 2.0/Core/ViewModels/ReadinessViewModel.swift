@@ -330,10 +330,15 @@ class ReadinessViewModel: ObservableObject {
                     await self.loadPastScores()
                 }
             }
+        } catch let error as ReadinessError {
+            await MainActor.run {
+                self.isLoading = false
+                self.error = error
+            }
         } catch {
             await MainActor.run {
                 self.isLoading = false
-                print("❌ VIEWMODEL: Recalculate all scores failed: \(error)")
+                self.error = .unknownError(error)
             }
         }
     }
