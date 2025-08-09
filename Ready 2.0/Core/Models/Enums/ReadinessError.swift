@@ -18,6 +18,7 @@ enum ReadinessError: LocalizedError {
     case databaseError(Error)
     case unknownError(Error)
     case notAvailable
+    case partialPermissions(missing: [String])
     
     // Localized error description for display
     var errorDescription: String? {
@@ -80,6 +81,9 @@ enum ReadinessError: LocalizedError {
             
         case .unknownError(let error):
             return "Unknown error: \(error.localizedDescription)"
+        case .partialPermissions(let missing):
+            if missing.isEmpty { return "Some health permissions are missing." }
+            return "Missing permissions: \(missing.joined(separator: ", "))"
         }
     }
     
@@ -98,6 +102,8 @@ enum ReadinessError: LocalizedError {
             
         case .historicalDataMissing:
             return "This data may not be available from your Apple Watch or other health devices for this date."
+        case .partialPermissions:
+            return "You can enable additional permissions in Settings > Privacy & Security > Health > Ready. The app works with HRV only; RHR and Sleep are optional."
             
         default:
             return nil

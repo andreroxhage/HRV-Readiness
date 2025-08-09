@@ -706,11 +706,22 @@ struct OnboardingView: View {
                     .padding()
                     .opacity(animateContent ? 1 : 0)
                     
-                    Text("This access is required to use Ready. \n \n The app cannot function without these permissions.")
-                        .font(.subheadline)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .opacity(animateContent ? 1 : 0)
+                    VStack(spacing: 8) {
+                        Text("Permissions Overview")
+                            .font(.headline)
+                        Text("Heart Rate Variability (HRV) is required to calculate your readiness.")
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                        Text("Resting Heart Rate and Sleep are optional and enable additional adjustments.")
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                        Text("You can start with HRV only and adjust permissions anytime in Settings.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal)
+                    .opacity(animateContent ? 1 : 0)
                     
                     if !isLandscape {
                         Spacer()

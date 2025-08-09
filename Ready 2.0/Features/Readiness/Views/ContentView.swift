@@ -186,7 +186,7 @@ struct ContentView: View {
                     SettingsView(viewModel: viewModel)
                 }
                 .alert(
-                    "Readiness Update Failed",
+                    "Readiness Update",
                     isPresented: Binding(
                         get: { viewModel.error != nil },
                         set: { if !$0 { 
@@ -208,6 +208,13 @@ struct ContentView: View {
                             if let suggestion = error.recoverySuggestion {
                                 Text(suggestion)
                                     .font(.callout)
+                                    .foregroundStyle(.secondary)
+                            }
+                            // Show inline data status when permissions are partial
+                            if case .partialPermissions(let missing) = error, !missing.isEmpty {
+                                Divider()
+                                Text("Missing: \(missing.joined(separator: ", "))")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
