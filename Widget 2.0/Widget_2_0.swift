@@ -48,29 +48,8 @@ struct Provider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
         let currentEntry = getHealthEntry()
-        
-        // Schedule updates every minute
-        var entries: [HealthEntry] = [currentEntry]
-        let currentDate = Date()
-        
-        for minute in stride(from: 1, through: 5, by: 1) {
-            let entryDate = Calendar.current.date(byAdding: .minute, value: minute, to: currentDate)!
-            let entry = HealthEntry(
-                date: entryDate,
-                hrv: currentEntry.hrv,
-                restingHeartRate: currentEntry.restingHeartRate,
-                sleepHours: currentEntry.sleepHours,
-                sleepQuality: currentEntry.sleepQuality,
-                readinessScore: currentEntry.readinessScore,
-                readinessCategory: currentEntry.readinessCategory,
-                readinessMode: currentEntry.readinessMode
-            )
-            entries.append(entry)
-        }
-        
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 1, to: currentDate)!
-        let timeline = Timeline(entries: entries, policy: .after(nextUpdate))
-        
+        // Provide a single entry and rely on WidgetCenter.reloadAllTimelines() after app calculations
+        let timeline = Timeline(entries: [currentEntry], policy: .atEnd)
         completion(timeline)
     }
     
@@ -146,26 +125,32 @@ struct SmallWidgetView: View {
     var entry: Provider.Entry
     
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "heart.text.square.fill")
-                .font(.title)
-                .foregroundStyle(.pink)
-            Text("\(Int(entry.hrv))")
+        VStack(spacing: 4) {
+            Text(entry.readinessEmoji)
+                .font(.title2)
+            Text("\(Int(entry.readinessScore))")
                 .font(.system(.title, design: .rounded))
                 .bold()
-            Text("ms HRV")
-                .font(.caption)
-            Text("Sleep: \(formatSleepDuration(hours: entry.sleepHours))")
+                .foregroundStyle(color(for: entry.readinessCategory))
+            Text(entry.readinessCategory)
+                .font(.caption2)
+                .foregroundStyle(color(for: entry.readinessCategory))
+            Text(entry.readinessDescription)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
     
-    private func formatSleepDuration(hours: Double) -> String {
-        let totalMinutes = Int(hours * 60)
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        return "\(hours)h \(minutes)m"
+    private func color(for category: String) -> Color {
+        switch category {
+        case "Optimal": return .green
+        case "Moderate": return .yellow
+        case "Low": return .orange
+        case "Fatigue": return .red
+        default: return .gray
+        }
     }
 }
 

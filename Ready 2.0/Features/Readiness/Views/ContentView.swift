@@ -61,6 +61,7 @@ struct ContentView: View {
                             
                             Text(viewModel.readinessCategory.description)
                                 .font(.subheadline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .transition(.opacity)
                                 .id(viewModel.readinessCategory.description)
                         }
