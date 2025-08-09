@@ -140,6 +140,11 @@ struct SmallWidgetView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+            Text(relativeTime(from: entry.date))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
     }
     
@@ -152,51 +157,70 @@ struct SmallWidgetView: View {
         default: return .gray
         }
     }
+
+    private func relativeTime(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
 }
 
 struct MediumWidgetView: View {
     var entry: Provider.Entry
     
     var body: some View {
-        HStack {
-            VStack(spacing: 8) {
-                Image(systemName: "heart.text.square.fill")
-                    .font(.title2)
-                    .foregroundStyle(.pink)
-                Text("\(Int(entry.hrv))")
-                    .font(.system(.body, design: .rounded))
-                    .bold()
-                Text("HRV ms")
-                    .font(.caption)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(entry.readinessEmoji)
+                    Text("Readiness")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("\(Int(entry.readinessScore))")
+                        .font(.system(.title, design: .rounded))
+                        .bold()
+                        .foregroundStyle(color(for: entry.readinessCategory))
+                    Text(entry.readinessCategory)
+                        .font(.subheadline)
+                        .foregroundStyle(color(for: entry.readinessCategory))
+                }
+                Text(entry.readinessDescription)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(relativeTime(from: entry.date))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            
-            Divider()
-            
-            VStack(spacing: 8) {
-                Image(systemName: "heart.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.red)
-                Text("\(Int(entry.restingHeartRate))")
-                    .font(.system(.body, design: .rounded))
-                    .bold()
-                Text("Resting")
-                    .font(.caption)
-            }
-            
-            Divider()
-            
-            VStack(spacing: 8) {
-                Image(systemName: "bed.double.fill")
-                    .font(.title2)
-                    .foregroundStyle(.indigo)
-                Text(formatSleepDuration(hours: entry.sleepHours))
-                    .font(.system(.body, design: .rounded))
-                    .bold()
-                Text("Sleep")
-                    .font(.caption)
+            Spacer(minLength: 8)
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: entry.readinessMode == "morning" ? "sunrise" : "clock.arrow.circlepath")
+                        .foregroundStyle(entry.readinessMode == "morning" ? .orange : .blue)
+                    Text(entry.readinessMode == "morning" ? "Morning" : "Rolling")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 10) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "heart.text.square.fill").foregroundStyle(.pink)
+                        Text("\(Int(entry.hrv)) ms").font(.caption2)
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "heart.circle.fill").foregroundStyle(.red)
+                        Text("\(Int(entry.restingHeartRate))").font(.caption2)
+                    }
+                    HStack(spacing: 4) {
+                        Image(systemName: "bed.double.fill").foregroundStyle(.indigo)
+                        Text(formatSleepDuration(hours: entry.sleepHours)).font(.caption2)
+                    }
+                }
             }
         }
-        .padding()
+        .padding(10)
     }
     
     private func formatSleepDuration(hours: Double) -> String {
@@ -204,6 +228,22 @@ struct MediumWidgetView: View {
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         return "\(hours)h \(minutes)m"
+    }
+
+    private func color(for category: String) -> Color {
+        switch category {
+        case "Optimal": return .green
+        case "Moderate": return .yellow
+        case "Low": return .orange
+        case "Fatigue": return .red
+        default: return .gray
+        }
+    }
+
+    private func relativeTime(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
