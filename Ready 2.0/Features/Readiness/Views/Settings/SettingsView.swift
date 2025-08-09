@@ -7,24 +7,18 @@ struct SettingsView: View {
     @State private var showHealthKitAuth = false
     @State private var showingUnsavedChangesAlert = false
     @State private var showRecalcPrompt = false
-    @State private var pendingChanges: ReadinessSettingsChange?
+
+    // Persisted originals captured on appear for change detection at Save
+    @State private var originalReadinessMode: ReadinessMode = .morning
+    @State private var originalBaselinePeriod: BaselinePeriod = .sevenDays
+    @State private var originalUseRHR: Bool = false
+    @State private var originalUseSleep: Bool = false
+    @State private var originalMinimumDays: Int = 3
+    @State private var originalMorningEndHour: Int = 11
     
     init(viewModel: ReadinessViewModel) {
         self.viewModel = viewModel
-        self._settingsManager = StateObject(wrappedValue: ReadinessSettingsManager(
-            onSettingsChanged: { changes in
-                // Gate heavy historical recomputation behind a prompt
-                if changes.requiresHistoricalRecalculation {
-                    // Store and prompt; Settings view decides what to run
-                    DispatchQueue.main.async {
-                        self.pendingChanges = changes
-                        self.showRecalcPrompt = true
-                    }
-                } else if changes.requiresCurrentRecalculation {
-                    viewModel.handleSettingsChanges(changes)
-                }
-            }
-        ))
+        self._settingsManager = StateObject(wrappedValue: ReadinessSettingsManager())
     }
     
     var body: some View {
@@ -230,8 +224,42 @@ struct SettingsView: View {
                             Task {
                                 do {
                                     try await settingsManager.saveSettings()
-                                    // If a heavy recomputation is pending, show prompt and keep view open
-                                    if !showRecalcPrompt {
+                                    // Build change set by comparing persisted before/after
+                                    let u = UserDefaultsManager.shared
+                                    var changeTypes: Set<SettingsChangeType> = []
+                                    if originalReadinessMode != u.readinessMode { changeTypes.insert(.readinessMode) }
+                                    if originalBaselinePeriod != u.baselinePeriod { changeTypes.insert(.baselinePeriod) }
+                                    if originalUseRHR != u.useRHRAdjustment { changeTypes.insert(.rhrAdjustment) }
+                                    if originalUseSleep != u.useSleepAdjustment { changeTypes.insert(.sleepAdjustment) }
+                                    if originalMinimumDays != u.minimumDaysForBaseline { changeTypes.insert(.minimumDays) }
+                                    if originalMorningEndHour != u.morningEndHour { changeTypes.insert(.morningEndHour) }
+
+                                    let changes = ReadinessSettingsChange(
+                                        types: changeTypes,
+                                        previousValues: SettingsValues(
+                                            mode: originalReadinessMode,
+                                            period: originalBaselinePeriod,
+                                            rhrEnabled: originalUseRHR,
+                                            sleepEnabled: originalUseSleep,
+                                            minimumDays: originalMinimumDays,
+                                            morningEndHour: originalMorningEndHour
+                                        ),
+                                        newValues: SettingsValues(
+                                            mode: u.readinessMode,
+                                            period: u.baselinePeriod,
+                                            rhrEnabled: u.useRHRAdjustment,
+                                            sleepEnabled: u.useSleepAdjustment,
+                                            minimumDays: u.minimumDaysForBaseline,
+                                            morningEndHour: u.morningEndHour
+                                        )
+                                    )
+
+                                    if changes.requiresHistoricalRecalculation {
+                                        showRecalcPrompt = true
+                                    } else if changes.requiresCurrentRecalculation {
+                                        viewModel.handleSettingsChanges(changes)
+                                        dismiss()
+                                    } else {
                                         dismiss()
                                     }
                                 } catch {
@@ -258,7 +286,6 @@ struct SettingsView: View {
                     await viewModel.recalculateAllScores()
                     await viewModel.loadTodaysReadinessScore()
                     showRecalcPrompt = false
-                    pendingChanges = nil
                     dismiss()
                 }
             }
@@ -267,7 +294,6 @@ struct SettingsView: View {
                 Task { @MainActor in
                     await viewModel.loadTodaysReadinessScore()
                     showRecalcPrompt = false
-                    pendingChanges = nil
                     dismiss()
                 }
             }
@@ -284,7 +310,14 @@ struct SettingsView: View {
             Text("You have unsaved changes. Do you want to discard them?")
         }
         .onAppear {
-            // Settings manager is now initialized with proper callback to ViewModel
+            // Capture original persisted settings for change detection
+            let u = UserDefaultsManager.shared
+            originalReadinessMode = u.readinessMode
+            originalBaselinePeriod = u.baselinePeriod
+            originalUseRHR = u.useRHRAdjustment
+            originalUseSleep = u.useSleepAdjustment
+            originalMinimumDays = u.minimumDaysForBaseline
+            originalMorningEndHour = u.morningEndHour
         }
     }
 }
