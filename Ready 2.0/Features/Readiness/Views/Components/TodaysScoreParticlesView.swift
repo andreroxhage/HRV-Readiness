@@ -48,7 +48,8 @@ struct TodaysScoreParticlesView: View {
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                     withAnimation {
-                        isTapped = false
+                        isTapped =
+                      false
                     }
                 }
             }
