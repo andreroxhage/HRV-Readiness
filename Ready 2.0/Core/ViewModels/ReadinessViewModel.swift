@@ -112,6 +112,15 @@ class ReadinessViewModel: ObservableObject {
         self.useRHRAdjustment = userDefaultsManager.useRHRAdjustment
         self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
     }
+
+    /// Public sync to refresh ViewModel's published settings from UserDefaults without triggering recalculation.
+    @MainActor
+    func syncStateFromDefaults() {
+        self.readinessMode = userDefaultsManager.readinessMode
+        self.baselinePeriod = userDefaultsManager.baselinePeriod
+        self.useRHRAdjustment = userDefaultsManager.useRHRAdjustment
+        self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
+    }
     
     /// Perform 90-day historical recalculation after settings changes
     private func performHistoricalRecalculation() async {
