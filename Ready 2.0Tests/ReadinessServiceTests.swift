@@ -74,6 +74,56 @@ class ReadinessServiceTests: XCTestCase {
         XCTAssertLessThan(resultWithAdjustment.score, resultWithoutAdjustment.score)
         XCTAssertLessThan(resultWithAdjustment.sleepAdjustment, 0)
     }
+
+    func testHistoricalRecalculationChronologyAndMinimumDays() async throws {
+        // Arrange: enforce minimum 3 prior days for baseline
+        let userDefaults = UserDefaultsManager.shared
+        userDefaults.minimumDaysForBaseline = 3
+        userDefaults.baselinePeriod = .sevenDays
+        
+        let service = ReadinessService.shared
+        let storage = service.storageService
+        let calendar = Calendar.current
+        
+        // Seed 4 consecutive days with valid HRV data (>= 10 ms)
+        // Oldest first: d4 is the most recent among seeded
+        let today = calendar.startOfDay(for: Date())
+        let d1 = calendar.date(byAdding: .day, value: -6, to: today)! // oldest
+        let d2 = calendar.date(byAdding: .day, value: -5, to: today)!
+        let d3 = calendar.date(byAdding: .day, value: -4, to: today)!
+        let d4 = calendar.date(byAdding: .day, value: -3, to: today)! // first day with 3 prior
+        
+        _ = storage.saveHealthMetrics(date: d1, hrv: 50, restingHeartRate: 60, sleepHours: 8, sleepQuality: 3)
+        _ = storage.saveHealthMetrics(date: d2, hrv: 52, restingHeartRate: 60, sleepHours: 8, sleepQuality: 3)
+        _ = storage.saveHealthMetrics(date: d3, hrv: 54, restingHeartRate: 60, sleepHours: 8, sleepQuality: 3)
+        _ = storage.saveHealthMetrics(date: d4, hrv: 56, restingHeartRate: 60, sleepHours: 8, sleepQuality: 3)
+        
+        // Act: recalculate historical scores for last 10 days
+        let calculated = try await service.recalculateHistoricalScores(limitDays: 10)
+        XCTAssertGreaterThanOrEqual(calculated, 4)
+        
+        // Assert: d1..d3 should not have sufficient as-of baseline (baseline 0 -> category unknown)
+        if let s1 = storage.getReadinessScoreForDate(d1) {
+            XCTAssertEqual(s1.hrvBaseline, 0, accuracy: 0.001)
+            XCTAssertEqual(s1.category, .unknown)
+        }
+        if let s2 = storage.getReadinessScoreForDate(d2) {
+            XCTAssertEqual(s2.hrvBaseline, 0, accuracy: 0.001)
+            XCTAssertEqual(s2.category, .unknown)
+        }
+        if let s3 = storage.getReadinessScoreForDate(d3) {
+            XCTAssertEqual(s3.hrvBaseline, 0, accuracy: 0.001)
+            XCTAssertEqual(s3.category, .unknown)
+        }
+        
+        // d4 should have baseline computed from d1..d3 (avg = 52) and not include d4's own HRV
+        if let s4 = storage.getReadinessScoreForDate(d4) {
+            XCTAssertEqual(s4.hrvBaseline, 52, accuracy: 0.001)
+            XCTAssertNotEqual(s4.category, .unknown)
+        } else {
+            XCTFail("Expected readiness score for d4 to be created")
+        }
+    }
 }
 
 // Mock ReadinessService for testing
