@@ -357,6 +357,15 @@ class ReadinessService {
             category: category,
             timestamp: Date()
         )
+        // Save mini-history (last 7 scores) for widget dots
+        let recent = storageService.getReadinessScoresForPastDays(7)
+            .sorted { ($0.date ?? Date.distantPast) < ($1.date ?? Date.distantPast) }
+            .suffix(7)
+        let entries = recent.compactMap { s -> (Date, Double, ReadinessCategory)? in
+            guard let date = s.date else { return nil }
+            return (date, s.score, ReadinessCategory.forScore(s.score))
+        }
+        userDefaultsManager.updateWidgetHistory(entries: entries)
         
         return (finalScore, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment)
     }

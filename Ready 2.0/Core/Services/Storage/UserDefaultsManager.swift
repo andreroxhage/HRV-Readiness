@@ -247,6 +247,16 @@ class UserDefaultsManager {
         
         print("✅ WIDGET: Widget data updated and timeline refreshed")
     }
+  
+  // Store recent readiness history for widget rendering (dates, scores, categories)
+  func updateWidgetHistory(entries: [(date: Date, score: Double, category: ReadinessCategory)]) {
+      let dates: [Date] = entries.map { $0.date }
+      let scores: [Double] = entries.map { $0.score }
+      let cats: [String] = entries.map { $0.category.rawValue }
+      appGroupDefaults?.set(dates, forKey: "recentReadinessDates")
+      appGroupDefaults?.set(scores, forKey: "recentReadinessScores")
+      appGroupDefaults?.set(cats, forKey: "recentReadinessCategories")
+  }
     
     private func getWidgetColorData(for category: ReadinessCategory) -> (red: Double, green: Double, blue: Double) {
         switch category {

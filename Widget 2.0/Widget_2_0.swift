@@ -69,6 +69,11 @@ struct Provider: TimelineProvider {
         let sleepQ = d?.integer(forKey: "sleepQuality") ?? 0
         let mode = d?.string(forKey: "readinessMode") ?? "morning"
 
+        // Recent history for larger widgets (optional)
+        let recentDates = (d?.array(forKey: "recentReadinessDates") as? [Date]) ?? []
+        let recentScores = (d?.array(forKey: "recentReadinessScores") as? [Double]) ?? []
+        let recentCats = (d?.array(forKey: "recentReadinessCategories") as? [String]) ?? []
+
         return HealthEntry(
             date: ts,
             hrv: hrv,
@@ -79,7 +84,10 @@ struct Provider: TimelineProvider {
             readinessCategory: category,
             readinessMode: mode,
             readinessEmoji: emoji,
-            readinessDescription: description
+            readinessDescription: description,
+            recentDates: recentDates,
+            recentScores: recentScores,
+            recentCategories: recentCats
         )
     }
 }
@@ -95,6 +103,9 @@ struct HealthEntry: TimelineEntry {
     let readinessMode: String
     let readinessEmoji: String
     let readinessDescription: String
+    let recentDates: [Date]
+    let recentScores: [Double]
+    let recentCategories: [String]
 }
 
 struct Widget_2_0EntryView: View {
@@ -125,35 +136,26 @@ struct SmallWidgetView: View {
     var entry: Provider.Entry
     
     var body: some View {
-        VStack(spacing: 4) {
-            Text(entry.readinessEmoji)
-                .font(.title2)
-            Text("\(Int(entry.readinessScore))")
-                .font(.system(.title, design: .rounded))
-                .bold()
-                .foregroundStyle(color(for: entry.readinessCategory))
-            Text(entry.readinessCategory)
-                .font(.caption2)
-                .foregroundStyle(color(for: entry.readinessCategory))
-            Text(entry.readinessDescription)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            Text(relativeTime(from: entry.date))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+        ZStack {
+            ringBackground()
+            ringProgress(score: entry.readinessScore)
+            VStack(spacing: 0) {
+                Text(entry.readinessEmoji)
+                    .font(.headline)
+                Text("\(Int(entry.readinessScore))")
+                    .font(.system(.title2, design: .rounded))
+                    .bold()
+                    .foregroundStyle(color(forScore: entry.readinessScore))
+            }
         }
     }
     
-    private func color(for category: String) -> Color {
-        switch category {
-        case "Optimal": return .green
-        case "Moderate": return .yellow
-        case "Low": return .orange
-        case "Fatigue": return .red
+    private func color(forScore score: Double) -> Color {
+        switch score {
+        case 80...100: return .mint
+        case 50...79: return .orange
+        case 30...49: return .pink
+        case 0...29: return .red
         default: return .gray
         }
     }
@@ -163,64 +165,56 @@ struct SmallWidgetView: View {
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
     }
+
+    private func ringBackground() -> some View {
+        Circle()
+            .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 8, lineCap: .round))
+            .padding(6)
+    }
+
+    private func ringProgress(score: Double) -> some View {
+        let progress = max(0, min(1, score / 100))
+        let c = color(forScore: score)
+        let grad = AngularGradient(colors: [c.opacity(0.9), c.opacity(0.6), c.opacity(0.9)], center: .center)
+        return Circle()
+            .trim(from: 0, to: progress)
+            .stroke(grad, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .padding(6)
+    }
 }
 
 struct MediumWidgetView: View {
     var entry: Provider.Entry
     
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(entry.readinessEmoji)
-                    Text("Readiness")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        VStack(spacing: 8) {
+            // Recent particles-like dots (up to 7)
+            HStack(spacing: 6) {
+                let count = min(entry.recentScores.count, 7)
+                ForEach(0..<count, id: \.self) { i in
+                    Circle()
+                        .fill(color(forScore: entry.recentScores[i]))
+                        .frame(width: 10, height: 10)
+                        .opacity(0.9)
                 }
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
+            }
+            ZStack {
+                ringBackground()
+                ringProgress(score: entry.readinessScore)
+                VStack(spacing: 0) {
+                    Text(entry.readinessEmoji).font(.headline)
                     Text("\(Int(entry.readinessScore))")
-                        .font(.system(.title, design: .rounded))
+                        .font(.system(.title2, design: .rounded))
                         .bold()
-                        .foregroundStyle(color(for: entry.readinessCategory))
-                    Text(entry.readinessCategory)
-                        .font(.subheadline)
-                        .foregroundStyle(color(for: entry.readinessCategory))
-                }
-                Text(entry.readinessDescription)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(relativeTime(from: entry.date))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            VStack(spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: entry.readinessMode == "morning" ? "sunrise" : "clock.arrow.circlepath")
-                        .foregroundStyle(entry.readinessMode == "morning" ? .orange : .blue)
-                    Text(entry.readinessMode == "morning" ? "Morning" : "Rolling")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: 10) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "heart.text.square.fill").foregroundStyle(.pink)
-                        Text("\(Int(entry.hrv)) ms").font(.caption2)
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "heart.circle.fill").foregroundStyle(.red)
-                        Text("\(Int(entry.restingHeartRate))").font(.caption2)
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "bed.double.fill").foregroundStyle(.indigo)
-                        Text(formatSleepDuration(hours: entry.sleepHours)).font(.caption2)
-                    }
+                        .foregroundStyle(color(forScore: entry.readinessScore))
                 }
             }
+            Text(relativeTime(from: entry.date))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
-        .padding(10)
+        .padding(8)
     }
     
     private func formatSleepDuration(hours: Double) -> String {
@@ -230,12 +224,12 @@ struct MediumWidgetView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    private func color(for category: String) -> Color {
-        switch category {
-        case "Optimal": return .green
-        case "Moderate": return .yellow
-        case "Low": return .orange
-        case "Fatigue": return .red
+    private func color(forScore score: Double) -> Color {
+        switch score {
+        case 80...100: return .mint
+        case 50...79: return .orange
+        case 30...49: return .pink
+        case 0...29: return .red
         default: return .gray
         }
     }
@@ -244,6 +238,23 @@ struct MediumWidgetView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func ringBackground() -> some View {
+        Circle()
+            .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+            .padding(6)
+    }
+
+    private func ringProgress(score: Double) -> some View {
+        let progress = max(0, min(1, score / 100))
+        let c = color(forScore: score)
+        let grad = AngularGradient(colors: [c.opacity(0.9), c.opacity(0.6), c.opacity(0.9)], center: .center)
+        return Circle()
+            .trim(from: 0, to: progress)
+            .stroke(grad, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .padding(6)
     }
 }
 
