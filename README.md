@@ -4,7 +4,6 @@
 
 Ready 2.0 is a learning project built to explore SwiftUI, MVVM, Core Data, HealthKit, BackgroundTasks, and WidgetKit. It computes a daily "readiness" score primarily from heart rate variability relative to a personal baseline, with optional adjustments from Resting Heart Rate (RHR) and Sleep.
 
-
 - **Platform**: iOS (SwiftUI)
 - **Architecture**: MVVM with services and storage layers
 - **Data Sources**: Apple Health (HRV required; RHR/Sleep optional)
@@ -16,9 +15,12 @@ Ready 2.0 is a minimal, on-device readiness companion. It turns your daily HRV i
 
 ### Preview
 
-![Home (Light)](README-IMAGES/ready_home.jpg)
-![Home (Dark)](README-IMAGES/ready_home_dark.PNG)
-![Widgets](README-IMAGES/ready_widgets.PNG)
+<p align="center">
+  <img src="README-IMAGES/ready_home.jpg" alt="Home (Light)" width="30%"/>
+  <img src="README-IMAGES/ready_home_dark.PNG" alt="Home (Dark)" width="30%"/>
+  <img src="README-IMAGES/ready_widgets.PNG" alt="Widgets" width="30%"/>
+  
+</p>
 
 ### How it works (brief)
 
@@ -76,5 +78,3 @@ This app mitigates some issues via personal baselines, valid‑day gating, morni
 ### License
 
 This project is provided for learning purposes. No warranty; use at your own risk.
-
-
