@@ -35,6 +35,10 @@ Pods/
 
 # Editor caches
 .lsp/
+.cursor/
+.clj-kondo/
+.idea/
+.vscode/
 
 # Design assets not used by the build
 Readiness.icon/
