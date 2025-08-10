@@ -9,6 +9,27 @@ import WidgetKit
 import SwiftUI
 import HealthKit
 
+// Shared category-aware color helper used by all widget views
+private func colorFor(score: Double, category: String?) -> Color {
+    if let category = category {
+        switch category {
+        case "Optimal": return .green
+        case "Moderate": return .yellow
+        case "Low": return .orange
+        case "Fatigue": return .red
+        default: break // Unknown or unexpected → fall back to score thresholds
+        }
+    }
+    // Fallback to score thresholds
+    switch score {
+    case 80...100: return .green
+    case 50...79: return .yellow
+    case 30...49: return .orange
+    case 1...29: return .red
+    default: return .gray // 0 or negative → Unknown/No data
+    }
+}
+
 // Create a simple wrapper for the HealthKitManager
 // This is a temporary solution until we fix the module structure
 class HealthDataProvider {
@@ -65,6 +86,8 @@ struct Provider: TimelineProvider {
         let description = d?.string(forKey: "currentReadinessDescription") ?? "No data available"
         // Timestamp key may vary; try both
         let ts = (d?.object(forKey: "lastUpdateTimestamp") as? Date) ?? (d?.object(forKey: "currentReadinessTimestamp") as? Date) ?? Date()
+        // Availability flag – if false, treat as no current score
+        let hasCurrent = d?.bool(forKey: "hasCurrentReadiness") ?? false
         // Optional legacy/extra metrics for secondary displays
         let hrv = d?.double(forKey: "lastHRV") ?? 0
         let rhr = d?.double(forKey: "lastRestingHeartRate") ?? 0
@@ -83,14 +106,15 @@ struct Provider: TimelineProvider {
             restingHeartRate: rhr,
             sleepHours: sleepH,
             sleepQuality: sleepQ,
-            readinessScore: score,
+            readinessScore: hasCurrent ? score : 0,
             readinessCategory: category,
             readinessMode: mode,
             readinessEmoji: emoji,
             readinessDescription: description,
             recentDates: recentDates,
             recentScores: recentScores,
-            recentCategories: recentCats
+            recentCategories: recentCats,
+            hasCurrentScore: hasCurrent
         )
     }
 }
@@ -109,6 +133,12 @@ struct HealthEntry: TimelineEntry {
     let recentDates: [Date]
     let recentScores: [Double]
     let recentCategories: [String]
+    
+    // UI States
+    var isLoading: Bool = false
+    var hasError: Bool = false
+    var isHighlighted: Bool = false
+    var hasCurrentScore: Bool = false
 }
 
 struct Widget_2_0EntryView: View {
@@ -135,88 +165,109 @@ struct Widget_2_0EntryView: View {
     }
 }
 
-struct SmallWidgetView: View {
-    var entry: Provider.Entry
-    
-    var body: some View {
-        ZStack {
-            ringBackground()
-            ringProgress(score: entry.readinessScore)
-            VStack(spacing: 0) {
-                Text("\(Int(entry.readinessScore))")
-                    .font(.system(.title2, design: .rounded))
-                    .bold()
-                    .foregroundStyle(color(forScore: entry.readinessScore))
-            }
-        }
-    }
-    
-    private func color(forScore score: Double) -> Color {
-        switch score {
-        case 80...100: return .mint
-        case 50...79: return .orange
-        case 30...49: return .pink
-        case 0...29: return .red
-        default: return .gray
-        }
-    }
 
-    private func relativeTime(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    private func ringBackground() -> some View {
-        Circle()
-            .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 8, lineCap: .round))
-            .padding(6)
-    }
-
-    private func ringProgress(score: Double) -> some View {
-        let progress = max(0, min(1, score / 100))
-        let c = color(forScore: score)
-        let grad = AngularGradient(colors: [c.opacity(0.9), c.opacity(0.6), c.opacity(0.9)], center: .center)
-        return Circle()
-            .trim(from: 0, to: progress)
-            .stroke(grad, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-            .rotationEffect(.degrees(-90))
-            .padding(6)
-    }
-}
 
 struct MediumWidgetView: View {
     var entry: Provider.Entry
-    
+
     var body: some View {
-        VStack(spacing: 8) {
-            // Recent particles-like dots (up to 7)
-            HStack(spacing: 6) {
-                let count = min(entry.recentScores.count, 7)
-                ForEach(0..<count, id: \.self) { i in
-                    Circle()
-                        .fill(color(forScore: entry.recentScores[i]))
-                        .frame(width: 10, height: 10)
-                        .opacity(0.9)
+        HStack(alignment: .center, spacing: 0) {
+            // Left half: current score ring + last calc (perfectly centered)
+            HStack {
+                Spacer()
+                VStack(alignment: .center, spacing: 16) {
+                    ZStack {
+                        // Enhanced circle with gradient and shadow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    gradient: Gradient(colors: [
+                                        colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.3),
+                                        colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.1)
+                                    ]),
+                                    center: .center,
+                                    startRadius: 40,
+                                    endRadius: 60
+                                )
+                            )
+                            .frame(width: 100, height: 100)
+                            .shadow(color: colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.3), radius: 8, x: 0, y: 2)
+                            .background(.regularMaterial, in: Circle())
+
+                        // Score content with loading/error states
+                        if entry.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                                .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
+                        } else {
+                            VStack(spacing: 2) {
+                                Text("\(Int(entry.readinessScore))")
+                                    .font(.system(.title, design: .rounded))
+                                    .bold()
+                                    .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.9))
+                                    .contentTransition(.numericText())
+                                    .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+                                Text(entry.readinessCategory)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        // Error indicator overlay
+                        if entry.hasError {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                                .offset(x: 25, y: -25)
+                        }
+                    }
                 }
+                Spacer()
             }
-            ZStack {
-                ringBackground()
-                ringProgress(score: entry.readinessScore)
-                VStack(spacing: 0) {
-                    Text("\(Int(entry.readinessScore))")
-                        .font(.system(.title2, design: .rounded))
-                        .bold()
-                        .foregroundStyle(color(forScore: entry.readinessScore))
+            .frame(maxWidth: .infinity) // Takes up half the width
+
+            // Right half: title + MTWTFSS bars (perfectly centered)
+            HStack {
+                Spacer()
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Readiness")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack(alignment: .bottom, spacing: 8) {
+                        ForEach(weekdayPoints(entry: entry), id: \.dayIndex) { p in
+                            let barColor = colorFor(score: p.score ?? -1, category: p.category)
+                            VStack(spacing: 8) {
+                                Capsule()
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [
+                                                barColor,
+                                                barColor.opacity(0.7)
+                                            ]),
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                                    .frame(width: 4, height: barHeight(for: p.score))
+                                    .opacity(p.score == nil ? 0.15 : 0.95)
+                                    .scaleEffect(entry.isHighlighted ? 1.05 : 1.0)
+                                    .animation(.spring(response: 0.3), value: entry.isHighlighted)
+                                Text(p.label)
+                                    .font(.caption2)
+                                    .foregroundStyle(barColor.opacity(0.9))
+                            }
+                        }
+                    }
                 }
+                Spacer()
             }
-            Text(relativeTime(from: entry.date))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity) // Takes up half the width
         }
-        .padding(8)
+        .padding(12)
+        .dynamicTypeSize(.small ... .large) // Prevent extreme scaling in widgets
     }
-    
+
+
     private func formatSleepDuration(hours: Double) -> String {
         let totalMinutes = Int(hours * 60)
         let hours = totalMinutes / 60
@@ -224,20 +275,19 @@ struct MediumWidgetView: View {
         return "\(hours)h \(minutes)m"
     }
 
-    private func color(forScore score: Double) -> Color {
-        switch score {
-        case 80...100: return .mint
-        case 50...79: return .orange
-        case 30...49: return .pink
-        case 0...29: return .red
-        default: return .gray
-        }
-    }
+    // Colors now resolved via colorFor(score:category:)
 
     private func relativeTime(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+
+    private func absoluteTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "EEE d, HH:mm"
+        return f.string(from: date)
     }
 
     private func ringBackground() -> some View {
@@ -248,7 +298,7 @@ struct MediumWidgetView: View {
 
     private func ringProgress(score: Double) -> some View {
         let progress = max(0, min(1, score / 100))
-        let c = color(forScore: score)
+        let c = colorFor(score: score, category: entry.readinessCategory)
         let grad = AngularGradient(colors: [c.opacity(0.9), c.opacity(0.6), c.opacity(0.9)], center: .center)
         return Circle()
             .trim(from: 0, to: progress)
@@ -256,239 +306,483 @@ struct MediumWidgetView: View {
             .rotationEffect(.degrees(-90))
             .padding(6)
     }
-}
 
-struct LargeWidgetView: View {
-    var entry: Provider.Entry
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Health Insights")
-                .font(.headline)
-            
-            VStack(spacing: 15) {
-                HStack {
-                    Image(systemName: "heart.text.square.fill")
-                        .font(.title)
-                        .foregroundStyle(.pink)
-                    VStack(alignment: .leading) {
-                        Text("\(Int(entry.hrv)) ms")
-                            .font(.system(.title2, design: .rounded))
-                            .bold()
-                        Text("Heart Rate Variability")
-                            .font(.caption)
-                    }
-                }
-                
-                HStack {
-                    Image(systemName: "heart.circle.fill")
-                        .font(.title)
-                        .foregroundStyle(.red)
-                    VStack(alignment: .leading) {
-                        Text("\(Int(entry.restingHeartRate)) BPM")
-                            .font(.system(.title2, design: .rounded))
-                            .bold()
-                        Text("Resting Heart Rate")
-                            .font(.caption)
-                    }
-                }
-                
-                HStack {
-                    Image(systemName: "bed.double.fill")
-                        .font(.title)
-                        .foregroundStyle(.indigo)
-                    VStack(alignment: .leading) {
-                        Text(formatSleepDuration(hours: entry.sleepHours))
-                            .font(.system(.title2, design: .rounded))
-                            .bold()
-                        Text("Sleep Duration")
-                            .font(.caption)
-                    }
-                }
-                
-                HStack {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.title)
-                        .foregroundStyle(.purple)
-                    VStack(alignment: .leading) {
-                        Text("\(entry.sleepQuality)%")
-                            .font(.system(.title2, design: .rounded))
-                            .bold()
-                        Text("Sleep Quality")
-                            .font(.caption)
-                    }
-                }
-            }
-        }
-        .padding()
+    private func barHeight(for score: Double?) -> CGFloat {
+        guard let s = score else { return 6 }
+        return CGFloat(max(8, min(40, (s / 100.0) * 40)))
     }
-    
-    private func formatSleepDuration(hours: Double) -> String {
-        let totalMinutes = Int(hours * 60)
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        return "\(hours)h \(minutes)m"
-    }
-}
 
-struct CircularWidgetView: View {
-    var entry: Provider.Entry
-    
-    var body: some View {
-        Gauge(value: entry.readinessScore, in: 0...100) {
-            Image(systemName: "gauge.medium")
-        } currentValueLabel: {
-            Text("\(Int(entry.readinessScore))")
-        }
-        .gaugeStyle(.accessoryCircular)
-        .tint(getCategoryColor(entry.readinessCategory))
+    private struct DayPoint: Hashable {
+        let dayIndex: Int
+        let label: String
+        let score: Double?
+        let category: String?
     }
     
-    private func getCategoryColor(_ category: String) -> Color {
-        switch category {
-        case "Optimal":
-            return .green
-        case "Moderate":
-            return .yellow
-        case "Low":
-            return .orange
-        case "Fatigue":
-            return .red
-        default:
-            return .gray
+    private func weekdayPoints(entry: Provider.Entry) -> [DayPoint] {
+        // MTWTFSS
+        let labels = ["M","T","W","T","F","S","S"]
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        guard let weekStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)) else { return [] }
+        // Map stored dates → (score, category)
+        var scoreMap: [Date: Double] = [:]
+        var categoryMap: [Date: String] = [:]
+        for (i, d) in entry.recentDates.enumerated() {
+            let key = cal.startOfDay(for: d)
+            if i < entry.recentScores.count { scoreMap[key] = entry.recentScores[i] }
+            if i < entry.recentCategories.count { categoryMap[key] = entry.recentCategories[i] }
+        }
+        return (0..<7).map { idx in
+            let day = cal.startOfDay(for: cal.date(byAdding: .day, value: idx, to: weekStart)!)
+            return DayPoint(
+                dayIndex: idx,
+                label: labels[idx],
+                score: scoreMap[day],
+                category: categoryMap[day]
+            )
         }
     }
+
 }
 
-struct RectangularWidgetView: View {
-    var entry: Provider.Entry
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "gauge.medium")
-                .foregroundStyle(getCategoryColor(entry.readinessCategory))
-            Text("Readiness: \(Int(entry.readinessScore))")
-            Spacer()
-            Image(systemName: "heart.text.square.fill")
-                .foregroundStyle(.pink)
-            Text("\(Int(entry.hrv)) ms")
-        }
-    }
-    
-    private func getCategoryColor(_ category: String) -> Color {
-        switch category {
-        case "Optimal":
-            return .green
-        case "Moderate":
-            return .yellow
-        case "Low":
-            return .orange
-        case "Fatigue":
-            return .red
-        default:
-            return .gray
-        }
-    }
-}
+  // Small Widget - Left side of medium (score ring only)
+  struct ReadinessWidgetView: View {
+      var entry: Provider.Entry
 
-struct InlineWidgetView: View {
-    var entry: Provider.Entry
-    
-    var body: some View {
-        Text("Readiness: \(Int(entry.readinessScore)) | HRV: \(Int(entry.hrv)) ms")
-    }
-}
-
-// Add a new widget view for readiness
-struct ReadinessWidgetView: View {
-    var entry: Provider.Entry
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 4) {
-                Text(entry.readinessEmoji)
-                Text("Readiness")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            
-            Text("\(Int(entry.readinessScore))")
-                .font(.system(.title, design: .rounded))
-                .bold()
-            
-            Text(entry.readinessCategory)
+      var body: some View {
+          VStack(alignment: .center, spacing: 12) {
+            Text("Readiness")
                 .font(.caption)
-                .foregroundStyle(getCategoryColor(entry.readinessCategory))
-            
-            HStack(spacing: 4) {
-                Image(systemName: entry.readinessMode == "morning" ? "sunrise" : "clock.arrow.circlepath")
-                    .font(.caption2)
-                    .foregroundStyle(entry.readinessMode == "morning" ? .orange : .blue)
-                
-                Text("\(Int(entry.hrv)) ms")
-                    .font(.caption2)
-            }
-
-            Text(entry.readinessDescription)
-                .font(.caption2)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+
+              ZStack {
+                  // Enhanced circle with gradient and shadow
+                  Circle()
+                      .fill(
+                          RadialGradient(
+                              gradient: Gradient(colors: [
+                                  colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.3),
+                                  colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.1)
+                              ]),
+                              center: .center,
+                              startRadius: 35,
+                              endRadius: 50
+                          )
+                      )
+                      .frame(width: 80, height: 80)
+                      .shadow(color: colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.3), radius: 6, x: 0, y: 2)
+                      .background(.regularMaterial, in: Circle())
+
+                  // Score content with loading/error states
+                  if entry.isLoading {
+                      ProgressView()
+                          .scaleEffect(0.7)
+                          .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
+                  } else {
+                      VStack(spacing: 1) {
+                          Text("\(Int(entry.readinessScore))")
+                              .font(.system(.title2, design: .rounded))
+                              .bold()
+                              .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.9))
+                              .contentTransition(.numericText())
+                              .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+                          Text(entry.readinessCategory)
+                              .font(.caption2)
+                              .foregroundStyle(.secondary)
+                      }
+                  }
+
+                  // Error indicator overlay
+                  if entry.hasError {
+                      Image(systemName: "exclamationmark.triangle.fill")
+                          .foregroundStyle(.orange)
+                          .font(.caption2)
+                          .offset(x: 20, y: -20)
+                  }
+              }
+
+
+          }
+          .padding(8)
+          .dynamicTypeSize(.small ... .large)
+      }
+
+      // Colors now resolved via colorFor(score:category:)
+  }
+
+  // Large Widget - Extended version with metrics and chart
+  struct LargeWidgetView: View {
+      var entry: Provider.Entry
+
+      var body: some View {
+          VStack(alignment: .leading, spacing: 16) {
+
+              // Description and timestamp
+              VStack(alignment: .leading, spacing: 8) {
+                  Text("Readiness")
+                      .font(.headline)
+                      .foregroundStyle(.primary)
+
+                  Text(entry.readinessDescription)
+                      .font(.subheadline)
+                      .foregroundStyle(.secondary)
+                      .multilineTextAlignment(.leading)
+
+                  Text(relativeTime(from: entry.date))
+                      .font(.caption)
+                      .foregroundStyle(.tertiary)
+              }
+
+              // Top section - Current score and description
+              HStack(alignment: .center, spacing: 24) {
+                  // Score ring (larger)
+                  ZStack {
+                      let ringColor = colorFor(score: entry.readinessScore, category: entry.readinessCategory)
+                      let ringGradient = RadialGradient(
+                          gradient: Gradient(colors: [
+                              ringColor.opacity(0.3),
+                              ringColor.opacity(0.1)
+                          ]),
+                          center: .center,
+                          startRadius: 50,
+                          endRadius: 70
+                      )
+
+                      Circle()
+                          .fill(ringGradient)
+                          .frame(width: 120, height: 120)
+                          .shadow(color: ringColor.opacity(0.3), radius: 10, x: 0, y: 3)
+                          .background(.regularMaterial, in: Circle())
+
+                      if entry.isLoading {
+                          ProgressView()
+                              .scaleEffect(1.0)
+                              .tint(ringColor)
+                      } else {
+                          VStack(spacing: 3) {
+                              Text("\(Int(entry.readinessScore))")
+                                  .font(.system(.largeTitle, design: .rounded))
+                                  .bold()
+                                  .foregroundStyle(ringColor.opacity(0.9))
+                                  .contentTransition(.numericText())
+                                  .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+                              Text(entry.readinessCategory)
+                                  .font(.caption)
+                                  .foregroundStyle(.secondary)
+                          }
+                      }
+
+                      if entry.hasError {
+                          Image(systemName: "exclamationmark.triangle.fill")
+                              .foregroundStyle(.orange)
+                              .font(.caption)
+                              .offset(x: 35, y: -35)
+                      }
+                  }
+                  // Weekly chart
+                  VStack(alignment: .leading, spacing: 8) {
+                      HStack(alignment: .bottom, spacing: 12) {
+                          ForEach(weekdayPoints(entry: entry), id: \.self.dayIndex) { point in
+                              let barColor = colorFor(score: point.score ?? -1, category: point.category)
+                              VStack(spacing: 6) {
+                                  Capsule()
+                                      .fill(
+                                          LinearGradient(
+                                              gradient: Gradient(colors: [
+                                                  barColor,
+                                                  barColor.opacity(0.7)
+                                              ]),
+                                              startPoint: .top,
+                                              endPoint: .bottom
+                                          )
+                                      )
+                                      .frame(width: 6, height: barHeight(for: point.score, maxHeight: 60))
+                                      .opacity(point.score == nil ? 0.15 : 0.95)
+                                      .scaleEffect(entry.isHighlighted ? 1.05 : 1.0)
+                                      .animation(.spring(response: 0.3), value: entry.isHighlighted)
+
+                                  Text(point.label)
+                                      .font(.caption2)
+                                      .foregroundStyle(barColor.opacity(0.9))
+                              }
+                          }
+                      }
+                  }
+              }
+
+              // Health metrics row
+              HStack(spacing: 16) {
+                  MetricView(title: "HRV", value: "\(Int(entry.hrv))", unit: "ms", color: .blue)
+                  MetricView(title: "RHR", value: "\(Int(entry.restingHeartRate))", unit: "bpm", color: .red)
+                  MetricView(title: "Sleep", value: formatSleepDuration(hours: entry.sleepHours), unit: "", color: .purple)
+              }
+          }
+          .padding(16)
+          .dynamicTypeSize(.small ... .large)
+      }
+
+      // Colors now resolved via colorFor(score:category:)
+
+      private func relativeTime(from date: Date) -> String {
+          let formatter = RelativeDateTimeFormatter()
+          formatter.unitsStyle = .short
+          return formatter.localizedString(for: date, relativeTo: Date())
+      }
+
+      private func formatSleepDuration(hours: Double) -> String {
+          let totalMinutes = Int(hours * 60)
+          let hours = totalMinutes / 60
+          let minutes = totalMinutes % 60
+          return "\(hours)h \(minutes)m"
+      }
+
+      private func barHeight(for score: Double?, maxHeight: CGFloat) -> CGFloat {
+          guard let s = score else { return 8 }
+          return CGFloat(max(12, min(maxHeight, (s / 100.0) * maxHeight)))
+      }
+
+      private struct DayPoint: Hashable {
+          let dayIndex: Int
+          let label: String
+          let score: Double?
+           let category: String?
+      }
+
+      private func weekdayPoints(entry: Provider.Entry) -> [DayPoint] {
+           let labels = ["M","T","W","T","F","S","S"]
+           let calendar = Calendar.current
+           let today = calendar.startOfDay(for: Date())
+           guard let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)) else { return [] }
+           var scoreByDay: [Date: Double] = [:]
+           var categoryByDay: [Date: String] = [:]
+           for (index, date) in entry.recentDates.enumerated() {
+               let key = calendar.startOfDay(for: date)
+               if index < entry.recentScores.count { scoreByDay[key] = entry.recentScores[index] }
+               if index < entry.recentCategories.count { categoryByDay[key] = entry.recentCategories[index] }
+           }
+           return (0..<7).map { index in
+               let day = calendar.startOfDay(for: calendar.date(byAdding: .day, value: index, to: weekStart)!)
+               return DayPoint(
+                   dayIndex: index,
+                   label: labels[index],
+                   score: scoreByDay[day],
+                   category: categoryByDay[day]
+               )
+           }
+      }
+  }
+
+  // Metric view helper for large widget
+  struct MetricView: View {
+      let title: String
+      let value: String
+      let unit: String
+      let color: Color
+
+      var body: some View {
+          VStack(spacing: 4) {
+              Text(title)
+                  .font(.caption2)
+                  .foregroundStyle(.secondary)
+              HStack(alignment: .bottom, spacing: 2) {
+                  Text(value)
+                      .font(.system(.callout, design: .rounded))
+                      .bold()
+                      .foregroundStyle(color)
+                  if !unit.isEmpty {
+                      Text(unit)
+                          .font(.caption2)
+                          .foregroundStyle(.tertiary)
+                  }
+              }
+          }
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 8)
+          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+      }
+  }
+
+  // Circular Accessory Widget
+  struct CircularWidgetView: View {
+      var entry: Provider.Entry
+
+      var body: some View {
+          ZStack {
+              // Progress ring
+              Circle()
+                  .stroke(Color.gray.opacity(0.3), lineWidth: 4)
+
+              Circle()
+                  .trim(from: 0, to: max(0, min(1, entry.readinessScore / 100)))
+                  .stroke(colorFor(score: entry.readinessScore, category: entry.readinessCategory), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                  .rotationEffect(.degrees(-90))
+                  .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+
+              // Score text
+              if entry.isLoading {
+                  ProgressView()
+                      .scaleEffect(0.6)
+                      .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
+              } else {
+                  Text("\(Int(entry.readinessScore))")
+                      .font(.system(.caption, design: .rounded))
+                      .bold()
+                      .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
+                      .contentTransition(.numericText())
+                      .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+              }
+          }
+          .widgetAccentable()
+      }
+
+      // Colors now resolved via colorFor(score:category:)
+  }
+
+  // Rectangular Accessory Widget
+  struct RectangularWidgetView: View {
+      var entry: Provider.Entry
+
+      var body: some View {
+          HStack(alignment: .center, spacing: 8) {
+              // Mini progress ring
+              ZStack {
+                  Circle()
+                      .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+                      .frame(width: 16, height: 16)
+
+                  Circle()
+                      .trim(from: 0, to: max(0, min(1, entry.readinessScore / 100)))
+                      .stroke(colorFor(score: entry.readinessScore, category: entry.readinessCategory), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                      .rotationEffect(.degrees(-90))
+                      .frame(width: 16, height: 16)
+                      .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+              }
+
+              VStack(alignment: .leading, spacing: 1) {
+                  if entry.isLoading {
+                      HStack {
+                          ProgressView()
+                              .scaleEffect(0.5)
+                          Text("Loading...")
+                              .font(.caption2)
+                              .foregroundStyle(.secondary)
+                      }
+                  } else {
+                      HStack(alignment: .bottom, spacing: 2) {
+                          Text("\(Int(entry.readinessScore))")
+                              .font(.system(.callout, design: .rounded))
+                              .bold()
+                              .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
+                              .contentTransition(.numericText())
+                              .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+                          Text("Readiness")
+                              .font(.caption2)
+                              .foregroundStyle(.secondary)
+                      }
+                      Text(entry.readinessCategory)
+                          .font(.caption2)
+                          .foregroundStyle(.tertiary)
+                  }
+              }
+
+              Spacer()
+          }
+          .widgetAccentable()
+      }
+
+      // Colors now resolved via colorFor(score:category:)
+  }
+
+  // Inline Accessory Widget
+  struct InlineWidgetView: View {
+      var entry: Provider.Entry
+
+      var body: some View {
+          if entry.isLoading {
+              Text("Loading readiness...")
+          } else {
+              Text("Readiness: \(Int(entry.readinessScore)) (\(entry.readinessCategory))")
+                  .contentTransition(.numericText())
+                  .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+          }
+      }
+  }
+
+  // Widget Configuration
+  struct Widget_2_0: Widget {
+      let kind: String = "Widget_2_0"
+
+      var body: some WidgetConfiguration {
+          StaticConfiguration(kind: kind, provider: Provider()) { entry in
+              Widget_2_0EntryView(entry: entry)
+                  .containerBackground(.fill.tertiary, for: .widget)
+          }
+          .configurationDisplayName("Readiness")
+          .description("Track your daily readiness score and health metrics.")
+          .supportedFamilies([
+              .systemSmall,
+              .systemMedium,
+              .systemLarge,
+              .accessoryCircular,
+              .accessoryRectangular,
+              .accessoryInline
+          ])
+      }
+  }
+
+
+#Preview(as: .systemSmall) {
+    Widget_2_0()
+} timeline: {
+    let now = Date()
+    let cal = Calendar.current
+    let recentDates = Array((0..<7).compactMap { cal.date(byAdding: .day, value: -$0, to: now) }.reversed())
+    let recentScores: [Double] = [82, 76, 64, 48, 30, 92, 58]
+    let entry = HealthEntry(
+        date: now,
+        hrv: 50,
+        restingHeartRate: 60,
+        sleepHours: 7.5,
+        sleepQuality: 70,
+        readinessScore: 78,
+        readinessCategory: "Moderate",
+        readinessMode: "morning",
+        readinessEmoji: "",
+        readinessDescription: "Solid—moderate training recommended",
+        recentDates: recentDates,
+        recentScores: recentScores,
+        recentCategories: recentScores.map { s in
+            s >= 80 ? "Optimal" : s >= 50 ? "Moderate" : s >= 30 ? "Low" : "Fatigue"
         }
-    }
-    
-    private func getCategoryColor(_ category: String) -> Color {
-        switch category {
-        case "Optimal":
-            return .green
-        case "Moderate":
-            return .yellow
-        case "Low":
-            return .orange
-        case "Fatigue":
-            return .red
-        default:
-            return .gray
-        }
-    }
+    )
+    return [entry]
 }
 
-struct Widget_2_0: Widget {
-    let kind: String = "Widget_2_0"
-
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
-            if #available(iOS 17.0, *) {
-                Widget_2_0EntryView(entry: entry)
-                    .containerBackground(.fill.tertiary, for: .widget)
-            } else {
-                Widget_2_0EntryView(entry: entry)
-                    .padding()
-                    .background()
-            }
+#Preview(as: .systemMedium) {
+    Widget_2_0()
+} timeline: {
+    let now = Date()
+    let cal = Calendar.current
+    let recentDates = Array((0..<7).compactMap { cal.date(byAdding: .day, value: -$0, to: now) }.reversed())
+    let recentScores: [Double] = [82, 76, 64, 48, 30, 92, 58]
+    let entry = HealthEntry(
+        date: now,
+        hrv: 50,
+        restingHeartRate: 60,
+        sleepHours: 7.5,
+        sleepQuality: 70,
+        readinessScore: 78,
+        readinessCategory: "Moderate",
+        readinessMode: "morning",
+        readinessEmoji: "",
+        readinessDescription: "Solid—moderate training recommended",
+        recentDates: recentDates,
+        recentScores: recentScores,
+        recentCategories: recentScores.map { s in
+            s >= 80 ? "Optimal" : s >= 50 ? "Moderate" : s >= 30 ? "Low" : "Fatigue"
         }
-        .configurationDisplayName("Health Insights")
-        .description("View your HRV and sleep data for better health tracking.")
-        .supportedFamilies(getSupportedFamilies())
-    }
-    
-    // Helper method to get supported widget families based on platform
-    private func getSupportedFamilies() -> [WidgetFamily] {
-        var families: [WidgetFamily] = [
-            .systemSmall,
-            .systemMedium,
-            .systemLarge
-        ]
-        
-        // Add accessory widget families only on iOS
-        #if os(iOS)
-        if #available(iOS 16.0, *) {
-            families.append(.accessoryCircular)
-            families.append(.accessoryRectangular)
-            families.append(.accessoryInline)
-        }
-        #endif
-        
-        return families
-    }
+    )
+    return [entry]
 }
+

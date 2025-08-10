@@ -8,7 +8,7 @@ import HealthKit
 // - Processing raw health data into usable formats
 // - Not responsible for business logic or UI
 
-class HealthKitManager {
+@globalActor actor HealthKitManager: @unchecked Sendable {
     static let shared = HealthKitManager()
     
     // MARK: - Properties
@@ -70,7 +70,7 @@ class HealthKitManager {
         // The app can work with partial permissions
     }
     
-    func isAuthorized() -> Bool {
+    func isAuthorized() async -> Bool {
         guard HKHealthStore.isHealthDataAvailable() else { 
             print("📱 HEALTHKIT: Health data not available on this device")
             return false 
@@ -136,7 +136,7 @@ class HealthKitManager {
         print("💗 HEALTHKIT: Fetching HRV for time range: \(startTime) to \(endTime)")
         
         // Check authorization status first
-        let authStatus = isAuthorized()
+        let authStatus = await isAuthorized()
         print("🔐 HEALTHKIT: Authorization status: \(authStatus)")
         
         guard let hrvType = HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN) else {
@@ -174,7 +174,7 @@ class HealthKitManager {
                         sampleType: hrvType,
                         predicate: broadPredicate,
                         limit: 10,
-                        sortDescriptors: [sortDescriptor]
+                        sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
                     ) { _, broadSamples, error in
                         if let broadSamples = broadSamples as? [HKQuantitySample] {
                             print("🔍 HEALTHKIT: Found \(broadSamples.count) HRV samples in past 7 days")
@@ -186,7 +186,7 @@ class HealthKitManager {
                             print("🔍 HEALTHKIT: No HRV data found in past 7 days either")
                         }
                     }
-                    self.healthStore.execute(broadQuery)
+                    Task { self.healthStore.execute(broadQuery) }
                     
                     continuation.resume(throwing: HealthKitError.noDataAvailable(metric: "HRV"))
                     return
@@ -213,7 +213,7 @@ class HealthKitManager {
         print("💓 HEALTHKIT: Fetching RHR for time range: \(startTime) to \(endTime)")
         
         // Check authorization status first
-        let authStatus = isAuthorized()
+      let authStatus = await isAuthorized()
         print("🔐 HEALTHKIT: Authorization status for RHR fetch: \(authStatus)")
         
         guard let rhrType = HKQuantityType.quantityType(forIdentifier: .restingHeartRate) else {
@@ -251,7 +251,7 @@ class HealthKitManager {
                         sampleType: rhrType,
                         predicate: broadPredicate,
                         limit: 10,
-                        sortDescriptors: [sortDescriptor]
+                        sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
                     ) { _, broadSamples, error in
                         if let broadSamples = broadSamples as? [HKQuantitySample] {
                             print("🔍 HEALTHKIT: Found \(broadSamples.count) RHR samples in past 7 days")
@@ -263,7 +263,7 @@ class HealthKitManager {
                             print("🔍 HEALTHKIT: No RHR data found in past 7 days either")
                         }
                     }
-                    self.healthStore.execute(broadQuery)
+                    Task { self.healthStore.execute(broadQuery) }
                     
                     continuation.resume(throwing: HealthKitError.noDataAvailable(metric: "Resting Heart Rate"))
                     return

@@ -15,12 +15,17 @@ struct ContentView: View {
     @State private var showingInfo = false
     @State private var showingSettings = false
     @Environment(\.appearanceViewModel) private var appearanceViewModel
+    @Environment(\.colorScheme) private var systemColorScheme
     
     // Health metrics state variables
     @State private var restingHeartRate: Double = 0
     @State private var sleepHours: Double = 0
     @State private var sleepQuality: Int = 0
     @State private var isLoading: Bool = false
+
+    private var effectiveColorScheme: ColorScheme {
+        appearanceViewModel.colorScheme ?? systemColorScheme
+    }
 
     var body: some View {
         // Show initial setup view if needed
@@ -178,8 +183,8 @@ struct ContentView: View {
                             showingSettings = true
                         }) {
                             Image(systemName: "gearshape")
-                                .foregroundStyle(appearanceViewModel.colorScheme == .dark ? .white : .black)
                         }
+                        .tint(effectiveColorScheme == .dark ? .white : .black)
                     }
                 }
                 .sheet(isPresented: $showingSettings) {
@@ -223,7 +228,7 @@ struct ContentView: View {
             }
             .background(viewModel.getBackgroundGradient(
                 for: viewModel.readinessScore,
-                isDarkMode: appearanceViewModel.colorScheme == .dark
+                isDarkMode: effectiveColorScheme == .dark
             )
             .ignoresSafeArea())
         }

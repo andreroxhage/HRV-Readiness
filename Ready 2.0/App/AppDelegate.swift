@@ -19,7 +19,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // Enable HealthKit background delivery if authorized
         Task {
             do {
-                if HealthKitManager.shared.isAuthorized() {
+                if await HealthKitManager.shared.isAuthorized() {
                     try await HealthKitManager.shared.enableBackgroundDelivery()
                     print("✅ APP: HealthKit background delivery enabled")
                 }
