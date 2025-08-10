@@ -33,3 +33,10 @@ Pods/
 /*.xcworkspace
 
 
+# Editor caches
+.lsp/
+
+# Design assets not used by the build
+Readiness.icon/
+
+
