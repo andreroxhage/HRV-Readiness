@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Xcode
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+*.xcscmblueprint
+**/xcuserdata/**
+DerivedData/
+build/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# Archives and symbols
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Signing artifacts (never commit)
+*.mobileprovision
+*.provisionprofile
+*.cer
+*.crt
+*.pem
+*.p12
+*.key
+
+# CocoaPods (if ever used)
+Pods/
+/*.xcworkspace
+
+

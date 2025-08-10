@@ -2,10 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSHealthShareUsageDescription</key>
-	<string>We need access to your health data to display your daily activity in the widget.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>We need access to update your health data for accurate widget display.</string>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Ready needs read-only access to your HRV, resting heart rate, and sleep data to display your readiness in the widget. This data is processed locally and never shared.</string>
+    <key>NSHealthUpdateUsageDescription</key>
+    <string>Ready does not write health data, only reads existing data for readiness calculations.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
