@@ -809,7 +809,7 @@ class ReadinessService {
                 timestamp: latest.calculationTimestamp ?? Date()
             )
             return true
-        }Workouts
+        }
         return false
     }
     
