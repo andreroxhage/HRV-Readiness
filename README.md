@@ -17,9 +17,8 @@ Ready 2.0 is a minimal, on-device readiness companion. It turns your daily HRV i
 
 <p align="center">
   <img src="README-IMAGES/ready_home.jpg" alt="Home (Light)" width="30%"/>
-  <img src="README-IMAGES/ready_home_dark.PNG" alt="Home (Dark)" width="30%"/>
   <img src="README-IMAGES/ready_widgets.PNG" alt="Widgets" width="30%"/>
-  
+  <img src="README-IMAGES/ready_home_dark.PNG" alt="Home (Dark)" width="30%"/>  
 </p>
 
 ### How it works (brief)

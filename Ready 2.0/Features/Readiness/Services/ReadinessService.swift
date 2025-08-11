@@ -31,6 +31,8 @@ class ReadinessService {
         self.userDefaultsManager = userDefaultsManager
     }
     
+    // Note: a more general implementation exists later in the file.
+    
     // MARK: - Settings Properties
     
     // Configuration properties
@@ -356,6 +358,13 @@ class ReadinessService {
             score: finalScore,
             category: category,
             timestamp: Date()
+        )
+        // Also publish latest health KPIs for large widgets
+        userDefaultsManager.updateLatestHealthMetrics(
+            hrv: hrv,
+            rhr: restingHeartRate,
+            sleepHours: sleepHours,
+            sleepQuality: 0 // sleepQuality not computed here; ContentView provides
         )
         // Save mini-history (last 7 scores) for widget dots
         let recent = storageService.getReadinessScoresForPastDays(7)
@@ -800,7 +809,7 @@ class ReadinessService {
                 timestamp: latest.calculationTimestamp ?? Date()
             )
             return true
-        }
+        }Workouts
         return false
     }
     

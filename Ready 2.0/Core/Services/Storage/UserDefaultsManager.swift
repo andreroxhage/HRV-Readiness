@@ -228,6 +228,7 @@ class UserDefaultsManager {
         userDefaults.set(score, forKey: "currentReadinessScore")
         userDefaults.set(category.rawValue, forKey: "currentReadinessCategory")
         userDefaults.set(timestamp, forKey: "currentReadinessTimestamp")
+        userDefaults.set(true, forKey: "hasCurrentReadiness")
         
         // Update app group UserDefaults for widget access
         appGroupDefaults?.set(score, forKey: "currentReadinessScore")
@@ -235,6 +236,7 @@ class UserDefaultsManager {
         appGroupDefaults?.set(timestamp, forKey: "currentReadinessTimestamp")
         appGroupDefaults?.set(category.emoji, forKey: "currentReadinessEmoji")
         appGroupDefaults?.set(category.description, forKey: "currentReadinessDescription")
+        appGroupDefaults?.set(true, forKey: "hasCurrentReadiness")
         
         // Additional widget display data
         let colorData = getWidgetColorData(for: category)
@@ -246,6 +248,33 @@ class UserDefaultsManager {
         WidgetCenter.shared.reloadAllTimelines()
         
         print("✅ WIDGET: Widget data updated and timeline refreshed")
+    }
+
+    // Store latest health KPIs for widget consumption
+    func updateLatestHealthMetrics(hrv: Double, rhr: Double, sleepHours: Double, sleepQuality: Int, timestamp: Date = Date()) {
+        // Main defaults (optional)
+        userDefaults.set(hrv, forKey: "lastHRV")
+        userDefaults.set(rhr, forKey: "lastRestingHeartRate")
+        userDefaults.set(sleepHours, forKey: "lastSleepHours")
+        userDefaults.set(sleepQuality, forKey: "sleepQuality")
+        // Also write legacy/alternate keys
+        userDefaults.set(hrv, forKey: "latestHRV")
+        userDefaults.set(rhr, forKey: "latestRHR")
+        userDefaults.set(sleepHours, forKey: "latestSleepHours")
+        userDefaults.set(sleepQuality, forKey: "latestSleepQuality")
+
+        // App group for widget
+        appGroupDefaults?.set(hrv, forKey: "lastHRV")
+        appGroupDefaults?.set(rhr, forKey: "lastRestingHeartRate")
+        appGroupDefaults?.set(sleepHours, forKey: "lastSleepHours")
+        appGroupDefaults?.set(sleepQuality, forKey: "sleepQuality")
+        appGroupDefaults?.set(hrv, forKey: "latestHRV")
+        appGroupDefaults?.set(rhr, forKey: "latestRHR")
+        appGroupDefaults?.set(sleepHours, forKey: "latestSleepHours")
+        appGroupDefaults?.set(sleepQuality, forKey: "latestSleepQuality")
+        appGroupDefaults?.set(timestamp, forKey: "lastHealthDataUpdate")
+
+        WidgetCenter.shared.reloadAllTimelines()
     }
   
   // Store recent readiness history for widget rendering (dates, scores, categories)

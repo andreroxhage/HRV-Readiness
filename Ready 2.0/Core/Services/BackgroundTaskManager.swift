@@ -112,6 +112,8 @@ class BackgroundTaskManager {
                         category: ReadinessCategory.forScore(score.score),
                         timestamp: Date()
                     )
+                    let appGroupDefaults = UserDefaults(suiteName: "group.andreroxhage.Ready-2-0")
+                    appGroupDefaults?.set(true, forKey: "hasCurrentReadiness")
                     
                     print("✅ BACKGROUND: Successfully calculated and updated readiness score: \(score.score)")
                     return true
