@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import Combine
 import CoreData
 
 // ReadinessViewModel
@@ -27,10 +26,6 @@ class ReadinessViewModel: ObservableObject {
     @Published var error: ReadinessError?
     @Published var pastScores: [ReadinessScore] = []
     
-    // Enhanced error handling state - leveraging ReadinessError enum
-    @Published var showPartialDataWarning: Bool = false
-    @Published var canUsePartialData: Bool = false
-    
     // Initial setup state
     @Published var isPerformingInitialSetup: Bool = false
     @Published var initialSetupProgress: Double = 0.0
@@ -49,12 +44,6 @@ class ReadinessViewModel: ObservableObject {
     let readinessService: ReadinessService
     private let calculationViewModel: ReadinessCalculationViewModel
     private let userDefaultsManager: UserDefaultsManager
-    
-    // For UserDefaults access
-    private var cancellables = Set<AnyCancellable>()
-    
-    // Debouncing for expensive recalculations
-    private var recalculationTimer: Timer?
     
     // Active long-running operation for cooperative cancellation
     private var activeOperationTask: Task<Void, Never>?
