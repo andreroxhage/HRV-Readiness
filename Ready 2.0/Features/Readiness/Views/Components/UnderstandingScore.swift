@@ -125,38 +125,21 @@ struct ScoreInfoOverlay: View {
                     
                     // Readiness modes section
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Readiness Modes")
+                        Text("Measurement Window")
                             .font(.headline)
                         
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack(alignment: .top) {
-                                Image(systemName: "sunrise")
-                                    .foregroundColor(.orange)
-                                    .frame(width: 24)
-                                
-                                VStack(alignment: .leading) {
-                                    Text("Morning Mode")
-                                        .font(.subheadline)
-                                        .bold()
-                                    Text("Uses HRV data from 00:00-\(String(format: "%02d", UserDefaultsManager.shared.morningEndHour)):00, ideal for consistent morning assessment")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                        HStack(alignment: .top) {
+                            Image(systemName: "sunrise")
+                                .foregroundColor(.orange)
+                                .frame(width: 24)
                             
-                            HStack(alignment: .top) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .foregroundColor(.blue)
-                                    .frame(width: 24)
-                                
-                                VStack(alignment: .leading) {
-                                    Text("Rolling Mode")
-                                        .font(.subheadline)
-                                        .bold()
-                                    Text("Uses HRV data from the last 6 hours, better for intraday monitoring or irregular schedules")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
+                            VStack(alignment: .leading) {
+                                Text("Morning Measurement")
+                                    .font(.subheadline)
+                                    .bold()
+                                Text("Ready measures your HRV during sleep (00:00-\(String(format: "%02d", UserDefaultsManager.shared.morningEndHour)):00) to provide consistent and accurate morning readiness scores.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }

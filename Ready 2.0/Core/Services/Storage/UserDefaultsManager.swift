@@ -38,7 +38,7 @@ class UserDefaultsManager {
         static let baselinePeriod = BaselinePeriod.sevenDays // FR-2: 7-day rolling baseline is primary requirement
         static let useRHRAdjustment = false // Changed to false - RHR adjustment is optional
         static let useSleepAdjustment = false // Changed to false - sleep adjustment is optional
-        static let minimumDaysForBaseline = 3
+        static let minimumDaysForBaseline = 2
         static let morningEndHour = 11 // Configurable morning window end hour (09-12), default 11:00
         static let hasCompletedOnboarding = false
     }

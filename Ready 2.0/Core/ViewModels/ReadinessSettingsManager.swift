@@ -14,7 +14,6 @@ class ReadinessSettingsManager: ObservableObject {
     
     // MARK: - Published Settings (Local State)
     
-    @Published var readinessMode: ReadinessMode
     @Published var baselinePeriod: BaselinePeriod
     @Published var useRHRAdjustment: Bool
     @Published var useSleepAdjustment: Bool
@@ -39,7 +38,6 @@ class ReadinessSettingsManager: ObservableObject {
         self.onSettingsChanged = onSettingsChanged
         
         // Load current values from UserDefaults
-        self.readinessMode = userDefaultsManager.readinessMode
         self.baselinePeriod = userDefaultsManager.baselinePeriod
         self.useRHRAdjustment = userDefaultsManager.useRHRAdjustment
         self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
@@ -55,12 +53,11 @@ class ReadinessSettingsManager: ObservableObject {
     private func setupChangeDetection() {
         // Use Publishers.CombineLatest to detect any setting changes
         Publishers.CombineLatest4(
-            $readinessMode,
             $baselinePeriod,
             $useRHRAdjustment,
-            $useSleepAdjustment
+            $useSleepAdjustment,
+            $minimumDaysForBaseline
         )
-        .combineLatest($minimumDaysForBaseline)
         .combineLatest($morningEndHour)
         .dropFirst() // Ignore initial values
         .sink { [weak self] _ in
@@ -74,7 +71,7 @@ class ReadinessSettingsManager: ObservableObject {
     // MARK: - Settings Operations
     
     /// Save all settings to UserDefaults and trigger business logic
-    func saveSettings() async throws {
+    func saveSettings() throws {
         guard hasUnsavedChanges else { return }
         
         isSaving = true
@@ -84,7 +81,7 @@ class ReadinessSettingsManager: ObservableObject {
         let changes: ReadinessSettingsChange = calculateChanges()
         
         // Save to UserDefaults atomically
-        await saveToUserDefaults()
+        saveToUserDefaults()
         
         // Mark as saved
         hasUnsavedChanges = false
@@ -101,9 +98,8 @@ class ReadinessSettingsManager: ObservableObject {
         print("✅ SETTINGS: Saved settings with changes: \(changes)")
     }
     
-    /// Discard changes and reload from UserDefaults
-    func discardChanges() {
-        readinessMode = userDefaultsManager.readinessMode
+    /// Refresh settings from UserDefaults (e.g., when view appears)
+    func refreshFromUserDefaults() {
         baselinePeriod = userDefaultsManager.baselinePeriod
         useRHRAdjustment = userDefaultsManager.useRHRAdjustment
         useSleepAdjustment = userDefaultsManager.useSleepAdjustment
@@ -111,12 +107,17 @@ class ReadinessSettingsManager: ObservableObject {
         morningEndHour = userDefaultsManager.morningEndHour
         
         hasUnsavedChanges = false
+        print("🔄 SETTINGS: Refreshed settings from UserDefaults")
+    }
+    
+    /// Discard changes and reload from UserDefaults
+    func discardChanges() {
+        refreshFromUserDefaults()
         print("🔄 SETTINGS: Discarded unsaved changes")
     }
     
     /// Reset settings to defaults
     func resetToDefaults() {
-        readinessMode = .morning
         baselinePeriod = .sevenDays
         useRHRAdjustment = false
         useSleepAdjustment = false
@@ -130,10 +131,6 @@ class ReadinessSettingsManager: ObservableObject {
     
     private func calculateChanges() -> ReadinessSettingsChange {
         var changeTypes: Set<SettingsChangeType> = []
-        
-        if readinessMode != userDefaultsManager.readinessMode {
-            changeTypes.insert(.readinessMode)
-        }
         
         if baselinePeriod != userDefaultsManager.baselinePeriod {
             changeTypes.insert(.baselinePeriod)
@@ -158,7 +155,7 @@ class ReadinessSettingsManager: ObservableObject {
         return ReadinessSettingsChange(
             types: changeTypes,
             previousValues: SettingsValues(
-                mode: userDefaultsManager.readinessMode,
+                mode: .morning, // Always morning mode
                 period: userDefaultsManager.baselinePeriod,
                 rhrEnabled: userDefaultsManager.useRHRAdjustment,
                 sleepEnabled: userDefaultsManager.useSleepAdjustment,
@@ -166,7 +163,7 @@ class ReadinessSettingsManager: ObservableObject {
                 morningEndHour: userDefaultsManager.morningEndHour
             ),
             newValues: SettingsValues(
-                mode: readinessMode,
+                mode: .morning, // Always morning mode
                 period: baselinePeriod,
                 rhrEnabled: useRHRAdjustment,
                 sleepEnabled: useSleepAdjustment,
@@ -176,20 +173,14 @@ class ReadinessSettingsManager: ObservableObject {
         )
     }
     
-    private func saveToUserDefaults() async {
+    private func saveToUserDefaults() {
         // Save atomically - all or nothing
-        await Task.detached { [weak self] in
-            guard let self = self else { return }
-            
-            await MainActor.run {
-                self.userDefaultsManager.readinessMode = self.readinessMode
-                self.userDefaultsManager.baselinePeriod = self.baselinePeriod
-                self.userDefaultsManager.useRHRAdjustment = self.useRHRAdjustment
-                self.userDefaultsManager.useSleepAdjustment = self.useSleepAdjustment
-                self.userDefaultsManager.minimumDaysForBaseline = self.minimumDaysForBaseline
-                self.userDefaultsManager.morningEndHour = self.morningEndHour
-            }
-        }.value
+        // Already on MainActor, no need to detach
+        userDefaultsManager.baselinePeriod = baselinePeriod
+        userDefaultsManager.useRHRAdjustment = useRHRAdjustment
+        userDefaultsManager.useSleepAdjustment = useSleepAdjustment
+        userDefaultsManager.minimumDaysForBaseline = minimumDaysForBaseline
+        userDefaultsManager.morningEndHour = morningEndHour
     }
 }
 
@@ -212,12 +203,11 @@ struct ReadinessSettingsChange {
     }
     
     var requiresCurrentRecalculation: Bool {
-        types.contains(.readinessMode) || types.contains(.morningEndHour) || requiresHistoricalRecalculation
+        types.contains(.morningEndHour) || requiresHistoricalRecalculation
     }
 }
 
 enum SettingsChangeType: CaseIterable {
-    case readinessMode
     case baselinePeriod
     case rhrAdjustment
     case sleepAdjustment

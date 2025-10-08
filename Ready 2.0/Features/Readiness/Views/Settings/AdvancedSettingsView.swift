@@ -120,6 +120,22 @@ struct AdvancedSettingsView: View {
             } footer: {
                 Text("Recalculate past readiness scores based on health data, or re-run the full 90-day import & backfill. Useful after manual edits in the Health app.")
             }
+            
+            // Debug Data Section
+            Section {
+                NavigationLink(destination: DebugDataView(viewModel: viewModel)) {
+                    HStack {
+                        Image(systemName: "chart.bar.doc.horizontal")
+                            .foregroundStyle(.blue)
+                        Text("Debug Data & Diagnostics")
+                        Spacer()
+                    }
+                }
+            } header: {
+                Text("Troubleshooting")
+            } footer: {
+                Text("View current metric values, baselines, and historical data for troubleshooting and debugging.")
+            }
 
         }
         .navigationTitle("Advanced Settings")

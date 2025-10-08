@@ -26,12 +26,22 @@ extension HealthMetrics {
     
     // Check if HRV data is valid
     var hasValidHRV: Bool {
-        return hrv > 10
+        return hrv >= 10 && hrv <= 200
+    }
+    
+    // Check if RHR data is valid
+    var hasValidRHR: Bool {
+        return restingHeartRate >= 30 && restingHeartRate <= 120
+    }
+    
+    // Check if sleep data is valid
+    var hasValidSleep: Bool {
+        return sleepHours > 0 && sleepHours <= 12
     }
     
     // Check if has all required metrics for readiness calculation
     var hasRequiredMetrics: Bool {
-        return hasValidHRV && restingHeartRate > 30 && sleepHours > 0
+        return hasValidHRV && hasValidRHR && hasValidSleep
     }
     
     // Check if has minimum required metrics for readiness calculation (just HRV)
@@ -44,11 +54,11 @@ extension HealthMetrics {
         var required = hasValidHRV
         
         if useRHR {
-            required = required && restingHeartRate > 30
+            required = required && hasValidRHR
         }
         
         if useSleep {
-            required = required && sleepHours > 0
+            required = required && hasValidSleep
         }
         
         return required
@@ -62,11 +72,11 @@ extension HealthMetrics {
             missing.append("HRV")
         }
         
-        if restingHeartRate <= 30 {
+        if !hasValidRHR {
             missing.append("Resting Heart Rate")
         }
         
-        if sleepHours <= 0 {
+        if !hasValidSleep {
             missing.append("Sleep Data")
         }
         
@@ -81,11 +91,11 @@ extension HealthMetrics {
             available.append("HRV")
         }
         
-        if restingHeartRate > 30 {
+        if hasValidRHR {
             available.append("Resting Heart Rate")
         }
         
-        if sleepHours > 0 {
+        if hasValidSleep {
             available.append("Sleep Data")
         }
         

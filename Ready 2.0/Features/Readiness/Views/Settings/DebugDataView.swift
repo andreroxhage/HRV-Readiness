@@ -387,7 +387,7 @@ class DebugDataLoader {
         
         // HRV baseline
         debugData.hrvBaseline = readinessService.calculateHRVBaseline()
-        let validHRVData = historicalMetrics.filter { $0.hrv >= 10 }
+        let validHRVData = historicalMetrics.filter { $0.hrv >= 10 && $0.hrv <= 200 }
         debugData.hrvBaselineCount = validHRVData.count
         if debugData.hrvBaseline > 0 && debugData.currentHRV > 0 {
             debugData.hrvDeviation = ((debugData.currentHRV - debugData.hrvBaseline) / debugData.hrvBaseline) * 100

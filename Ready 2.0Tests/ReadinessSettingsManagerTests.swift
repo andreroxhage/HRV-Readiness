@@ -15,6 +15,7 @@ final class ReadinessSettingsManagerTests: XCTestCase {
         defaults.morningEndHour = 11
     }
 
+    @MainActor
     func testChangeDetectionBaselinePeriodAndHistoricalFlag() async throws {
         let expectation = expectation(description: "onSettingsChanged called")
         var capturedChanges: ReadinessSettingsChange?
@@ -26,7 +27,7 @@ final class ReadinessSettingsManagerTests: XCTestCase {
 
         // Change baseline period to trigger historical recalculation requirement
         mgr.baselinePeriod = .fourteenDays
-        try await mgr.saveSettings()
+        try mgr.saveSettings()
 
         await fulfillment(of: [expectation], timeout: 2.0)
 
@@ -37,7 +38,8 @@ final class ReadinessSettingsManagerTests: XCTestCase {
         XCTAssertEqual(UserDefaultsManager.shared.baselinePeriod, .fourteenDays)
     }
 
-    func testDiscardRestoresMorningEndHour() {
+    @MainActor
+    func testDiscardRestoresMorningEndHour() async {
         let defaults = UserDefaultsManager.shared
         defaults.morningEndHour = 10
 
@@ -50,6 +52,7 @@ final class ReadinessSettingsManagerTests: XCTestCase {
         XCTAssertEqual(mgr.morningEndHour, 10)
     }
 
+    @MainActor
     func testRequiresCurrentOnlyForMorningEndHour() async throws {
         let expectation = expectation(description: "onSettingsChanged called")
         var capturedChanges: ReadinessSettingsChange?
@@ -60,7 +63,7 @@ final class ReadinessSettingsManagerTests: XCTestCase {
         }
 
         mgr.morningEndHour = 12
-        try await mgr.saveSettings()
+        try mgr.saveSettings()
 
         await fulfillment(of: [expectation], timeout: 2.0)
 

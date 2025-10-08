@@ -4,7 +4,7 @@ import CoreData
 // ReadinessScore extension
 // Provides additional functionality for the CoreData ReadinessScore entity
 
-extension ReadinessScore {
+extension ReadinessScore: @unchecked Sendable {
     // Convenience method to get formatted date string
     var formattedDate: String {
         let formatter = DateFormatter()

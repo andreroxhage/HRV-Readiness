@@ -205,7 +205,7 @@ class ReadinessService {
     func recalculateTodaysReadiness() async throws -> ReadinessScore? {
         let today = Calendar.current.startOfDay(for: Date())
         
-        if let existingMetrics = storageService.getHealthMetricsForDate(today) {
+      if (storageService.getHealthMetricsForDate(today) != nil) {
             return try await recalculateReadinessForDate(today)
         } else {
             throw ReadinessError.notAvailable
@@ -242,44 +242,48 @@ class ReadinessService {
         var baseScore: Double
         
         // Calculate score based on FR-3 algorithm thresholds
-            switch hrvDeviation {
-            case ...(-10):
-                // >10% below baseline → Poor/Fatigue (0-29)
-                // Map very low HRV to lower end of range
-                let severityFactor = min(abs(hrvDeviation) - 10, 20) / 20 // 0-1 scale for severity
-                baseScore = 29 - (severityFactor * 29) // 29 down to 0 as it gets worse
-                print("📉 READINESS: >10% below baseline (\(hrvDeviation)%) - Poor/Fatigue: \(baseScore)")
-            case -10...(-7):
-                // 7-10% below baseline → Low (30-49)
-                // Linear interpolation within the range
-                let rangePosition = (abs(hrvDeviation) - 7) / 3 // 0-1 within 7-10% range
-                baseScore = 49 - (rangePosition * 19) // 49 down to 30
-                print("📉 READINESS: 7-10% below baseline (\(hrvDeviation)%) - Low: \(baseScore)")
-            case -7...(-3):
-                // 3-7% below baseline → Moderate (50-79)
-                // Linear interpolation within the range
-                let rangePosition = (abs(hrvDeviation) - 3) / 4 // 0-1 within 3-7% range
-                baseScore = 79 - (rangePosition * 29) // 79 down to 50
-                print("📊 READINESS: 3-7% below baseline (\(hrvDeviation)%) - Moderate: \(baseScore)")
-            case -3...3:
-                // Within ±3% of baseline → Optimal (80-100)
-                // Score closer to 100 when closer to baseline
-                let deviationFromPerfect = abs(hrvDeviation) / 3 // 0-1 scale
-                baseScore = 100 - (deviationFromPerfect * 20) // 100 down to 80
-                print("✅ READINESS: Within ±3% of baseline (\(hrvDeviation)%) - Optimal: \(baseScore)")
-            case 10...:
-                // >10% above baseline → Supercompensation (90-100)
-                // Higher scores for higher HRV
-                let bonusFactor = min((hrvDeviation - 10) / 10, 1.0) // 0-1 scale for bonus
-                baseScore = 90 + (bonusFactor * 10) // 90 up to 100
-                print("🚀 READINESS: >10% above baseline (\(hrvDeviation)%) - Supercompensation: \(baseScore)")
-            default:
-                // 3-10% above baseline → Good Optimal range
-                // Linear interpolation between optimal and supercompensation
-                let rangePosition = (hrvDeviation - 3) / 7 // 0-1 within 3-10% range  
-                baseScore = 80 + (rangePosition * 10) // 80 up to 90
-                print("✅ READINESS: 3-10% above baseline (\(hrvDeviation)%) - Good Optimal: \(baseScore)")
-            }
+        switch hrvDeviation {
+        case ...(-10):
+            // >10% below baseline → Poor/Fatigue (0-29)
+            // Map very low HRV to lower end of range
+            let severityFactor = min(abs(hrvDeviation) - 10, 20) / 20 // 0-1 scale for severity
+            baseScore = 29 - (severityFactor * 29) // 29 down to 0 as it gets worse
+            print("📉 READINESS: >10% below baseline (\(hrvDeviation)%) - Poor/Fatigue: \(baseScore)")
+        case -10...(-7):
+            // 7-10% below baseline → Low (30-49)
+            // Linear interpolation within the range
+            let rangePosition = (abs(hrvDeviation) - 7) / 3 // 0-1 within 7-10% range
+            baseScore = 49 - (rangePosition * 19) // 49 down to 30
+            print("📉 READINESS: 7-10% below baseline (\(hrvDeviation)%) - Low: \(baseScore)")
+        case -7...(-3):
+            // 3-7% below baseline → Moderate (50-79)
+            // Linear interpolation within the range
+            let rangePosition = (abs(hrvDeviation) - 3) / 4 // 0-1 within 3-7% range
+            baseScore = 79 - (rangePosition * 29) // 79 down to 50
+            print("📊 READINESS: 3-7% below baseline (\(hrvDeviation)%) - Moderate: \(baseScore)")
+        case -3...3:
+            // Within ±3% of baseline → Optimal (80-100)
+            // Score closer to 100 when closer to baseline
+            let deviationFromPerfect = abs(hrvDeviation) / 3 // 0-1 scale
+            baseScore = 100 - (deviationFromPerfect * 20) // 100 down to 80
+            print("✅ READINESS: Within ±3% of baseline (\(hrvDeviation)%) - Optimal: \(baseScore)")
+        case 3...10:
+            // 3-10% above baseline → Good Optimal range (80-90)
+            // Linear interpolation between optimal and supercompensation
+            let rangePosition = (hrvDeviation - 3) / 7 // 0-1 within 3-10% range  
+            baseScore = 80 + (rangePosition * 10) // 80 up to 90
+            print("✅ READINESS: 3-10% above baseline (\(hrvDeviation)%) - Good Optimal: \(baseScore)")
+        case 10...:
+            // >10% above baseline → Supercompensation (90-100)
+            // Higher scores for higher HRV
+            let bonusFactor = min((hrvDeviation - 10) / 10, 1.0) // 0-1 scale for bonus
+            baseScore = 90 + (bonusFactor * 10) // 90 up to 100
+            print("🚀 READINESS: >10% above baseline (\(hrvDeviation)%) - Supercompensation: \(baseScore)")
+        default:
+            // This should never be reached with the above cases
+            baseScore = 0
+            print("❌ READINESS: Unexpected HRV deviation value: \(hrvDeviation)%")
+        }
         
         // Calculate adjustments based on other metrics (only if enabled and valid)
         var rhrAdjustment: Double = 0
@@ -454,15 +458,51 @@ class ReadinessService {
         print("📊 READINESS: Calculating HRV baseline as-of \(end) using period start \(start), min required: \(minimumDaysForBaseline)")
 
         let metrics = storageService.getHealthMetrics(from: start, to: end)
-        let valid = metrics.map { $0.hrv }.filter { $0 >= 10 }
+        let valid = metrics.map { $0.hrv }.filter { $0 >= 10 && $0 <= 200 }
 
         guard valid.count >= minimumDaysForBaseline else {
             print("❌ READINESS: Not enough valid HRV values as-of \(end) (\(valid.count) < \(minimumDaysForBaseline))")
+            
+            // Progressive baseline: use whatever valid data we have if it's at least 1 day
+            if valid.count >= 1 {
+                let partialBaseline = valid.reduce(0, +) / Double(valid.count)
+                
+                // Check stability of partial as-of baseline
+                let variance = valid.map { pow($0 - partialBaseline, 2) }.reduce(0, +) / Double(valid.count)
+                let standardDeviation = sqrt(variance)
+                let coefficientOfVariation = valid.count > 1 ? (standardDeviation / partialBaseline) * 100 : 0
+                
+                print("⚠️ READINESS: Using partial as-of baseline from \(valid.count) valid HRV days: \(partialBaseline) ms")
+                if valid.count > 1 {
+                    print("📊 READINESS: Partial as-of baseline stability - SD: \(String(format: "%.2f", standardDeviation)) ms, CV: \(String(format: "%.1f", coefficientOfVariation))%")
+                    if coefficientOfVariation >= 30.0 {
+                        print("⚠️ READINESS: Partial as-of baseline may be unstable (CV: \(String(format: "%.1f", coefficientOfVariation))% >= 30%)")
+                    }
+                } else {
+                    print("📊 READINESS: Single data point - stability cannot be assessed")
+                }
+                return partialBaseline
+            }
             return 0
         }
 
         let avg = valid.reduce(0, +) / Double(valid.count)
+        
+        // Check baseline stability using coefficient of variation
+        let variance = valid.map { pow($0 - avg, 2) }.reduce(0, +) / Double(valid.count)
+        let standardDeviation = sqrt(variance)
+        let coefficientOfVariation = (standardDeviation / avg) * 100
+        
         print("🎯 READINESS: As-of HRV baseline: \(avg) ms from \(valid.count) values")
+        print("📊 READINESS: As-of baseline stability - SD: \(String(format: "%.2f", standardDeviation)) ms, CV: \(String(format: "%.1f", coefficientOfVariation))%")
+        
+        // Check if baseline is stable (CV < 30%)
+        if coefficientOfVariation >= 30.0 {
+            print("⚠️ READINESS: As-of baseline may be unstable (CV: \(String(format: "%.1f", coefficientOfVariation))% >= 30%)")
+        } else {
+            print("✅ READINESS: As-of baseline is stable (CV: \(String(format: "%.1f", coefficientOfVariation))% < 30%)")
+        }
+        
         return avg
     }
 
@@ -513,28 +553,60 @@ class ReadinessService {
         let healthMetrics = storageService.getHealthMetricsForPastDays(days)
         print("💾 READINESS: Found \(healthMetrics.count) health metric records in past \(days) days")
         
-        // If we don't have enough data, return 0
-        if healthMetrics.count < minimumDaysForBaseline {
-            print("❌ READINESS: Not enough health records (\(healthMetrics.count) < \(minimumDaysForBaseline))")
-            return 0
-        }
+        // Note: Progressive baseline building is handled after HRV validation below
         
         // Debug: let's see what HRV values we have
         let allHRVValues = healthMetrics.map { $0.hrv }
         print("📈 READINESS: All HRV values: \(allHRVValues)")
         
-        // Remove any potentially bad data (very low HRV values that might be errors)
-        let validHRVValues = healthMetrics.map { $0.hrv }.filter { $0 >= 10 }
-        print("✅ READINESS: Valid HRV values (>= 10): \(validHRVValues)")
+        // Remove any potentially bad data (HRV values outside reasonable range)
+        let validHRVValues = healthMetrics.map { $0.hrv }.filter { $0 >= 10 && $0 <= 200 }
+        print("✅ READINESS: Valid HRV values (10-200ms): \(validHRVValues)")
         
         if validHRVValues.count < minimumDaysForBaseline {
             print("❌ READINESS: Not enough valid HRV values (\(validHRVValues.count) < \(minimumDaysForBaseline))")
+            
+            // Progressive baseline: use whatever valid data we have if it's at least 1 day
+            if validHRVValues.count >= 1 {
+                let partialBaseline = validHRVValues.reduce(0, +) / Double(validHRVValues.count)
+                
+                // Check stability of partial baseline
+                let variance = validHRVValues.map { pow($0 - partialBaseline, 2) }.reduce(0, +) / Double(validHRVValues.count)
+                let standardDeviation = sqrt(variance)
+                let coefficientOfVariation = validHRVValues.count > 1 ? (standardDeviation / partialBaseline) * 100 : 0
+                
+                print("⚠️ READINESS: Using partial baseline from \(validHRVValues.count) valid HRV days: \(partialBaseline) ms")
+                if validHRVValues.count > 1 {
+                    print("📊 READINESS: Partial baseline stability - SD: \(String(format: "%.2f", standardDeviation)) ms, CV: \(String(format: "%.1f", coefficientOfVariation))%")
+                    if coefficientOfVariation >= 30.0 {
+                        print("⚠️ READINESS: Partial baseline may be unstable (CV: \(String(format: "%.1f", coefficientOfVariation))% >= 30%)")
+                    }
+                } else {
+                    print("📊 READINESS: Single data point - stability cannot be assessed")
+                }
+                return partialBaseline
+            }
             return 0
         }
         
         let sum = validHRVValues.reduce(0, +)
         let average = sum / Double(validHRVValues.count)
+        
+        // Check baseline stability using coefficient of variation
+        let variance = validHRVValues.map { pow($0 - average, 2) }.reduce(0, +) / Double(validHRVValues.count)
+        let standardDeviation = sqrt(variance)
+        let coefficientOfVariation = (standardDeviation / average) * 100
+        
         print("🎯 READINESS: Calculated HRV baseline: \(average) ms from \(validHRVValues.count) values")
+        print("📊 READINESS: Baseline stability - SD: \(String(format: "%.2f", standardDeviation)) ms, CV: \(String(format: "%.1f", coefficientOfVariation))%")
+        
+        // Check if baseline is stable (CV < 30%)
+        if coefficientOfVariation >= 30.0 {
+            print("⚠️ READINESS: Baseline may be unstable (CV: \(String(format: "%.1f", coefficientOfVariation))% >= 30%)")
+            print("💡 READINESS: Consider using a longer baseline period or check for data quality issues")
+        } else {
+            print("✅ READINESS: Baseline is stable (CV: \(String(format: "%.1f", coefficientOfVariation))% < 30%)")
+        }
         
         // Save the baseline calculation timestamp
         userDefaultsManager.lastHRVBaselineCalculation = Date()
@@ -665,9 +737,15 @@ class ReadinessService {
             progressCallback(progress * 0.7, status) // Use first 70% for data fetching
         }
         
+        print("📊 READINESS: Received \(historicalData.count) days of historical data from HealthKit")
+        
         progressCallback(0.7, "Processing and saving historical data...")
         
+        // Create a background context for bulk operations
+        let backgroundContext = CoreDataManager.shared.newBackgroundContext()
+        
         var savedDays = 0
+        var skippedDays = 0
         let totalDays = historicalData.count
         
         for (index, dayData) in historicalData.enumerated() {
@@ -675,14 +753,16 @@ class ReadinessService {
                 progressCallback(Double(index) / Double(max(totalDays, 1)), "Cancelled after processing \(index) of \(totalDays) days")
                 throw CancellationError()
             }
+            
             // Only save if we have at least HRV data
-            if let hrv = dayData.hrv, hrv >= 10 {
+            if let hrv = dayData.hrv, hrv >= 10 && hrv <= 200 {
                 let rhr = dayData.rhr ?? 0
                 let sleepHours = dayData.sleep?.hours ?? 0
                 let sleepQuality = dayData.sleep?.quality ?? 0
                 
-                // Save the health metrics
-                _ = storageService.saveHealthMetrics(
+                // Save the health metrics using background context
+                _ = CoreDataManager.shared.saveHealthMetricsInBackground(
+                    context: backgroundContext,
                     date: dayData.date,
                     hrv: hrv,
                     restingHeartRate: rhr,
@@ -690,6 +770,13 @@ class ReadinessService {
                     sleepQuality: sleepQuality
                 )
                 savedDays += 1
+            } else {
+                skippedDays += 1
+                if let hrv = dayData.hrv {
+                    print("⚠️ READINESS: Skipping day \(dayData.date) - HRV \(hrv) outside valid range (10-200ms)")
+                } else {
+                    print("⚠️ READINESS: Skipping day \(dayData.date) - No HRV data available")
+                }
             }
             
             // Update progress
@@ -700,6 +787,11 @@ class ReadinessService {
             let dateString = dateFormatter.string(from: dayData.date)
             progressCallback(progress, "Processed \(index + 1)/\(totalDays): \(dateString)")
         }
+        
+        print("💾 READINESS: Saving \(savedDays) valid days, skipped \(skippedDays) days")
+        
+        // Save the background context
+        CoreDataManager.shared.saveContext(backgroundContext)
         
         progressCallback(0.9, "Calculating readiness scores...")
         
@@ -838,21 +930,29 @@ class ReadinessService {
         progressCallback(0.8, "Processing imported data...")
         print("📊 READINESS: Imported \(historicalData.count) days of historical data")
         
-        // Process and save the historical data
+        // Create a background context for bulk operations
+        let backgroundContext = CoreDataManager.shared.newBackgroundContext()
+        
+        // Process and save the historical data using background context with progressive baseline calculation
         var savedDays = 0
-        for dayData in historicalData {
+        var skippedDays = 0
+        var calculatedScores = 0
+        
+        for (index, dayData) in historicalData.enumerated() {
             if Task.isCancelled {
                 progressCallback(0.85, "Cancelled during saving imported data")
                 throw CancellationError()
             }
+            
             // Only save if we have at least HRV data
-            if let hrv = dayData.hrv, hrv >= 10 {
+            if let hrv = dayData.hrv, hrv >= 10 && hrv <= 200 {
                 let rhr = dayData.rhr ?? 0
                 let sleepHours = dayData.sleep?.hours ?? 0
                 let sleepQuality = dayData.sleep?.quality ?? 0
                 
-                // Save the health metrics
-                _ = storageService.saveHealthMetrics(
+                // Save the health metrics using background context
+                _ = CoreDataManager.shared.saveHealthMetricsInBackground(
+                    context: backgroundContext,
                     date: dayData.date,
                     hrv: hrv,
                     restingHeartRate: rhr,
@@ -860,58 +960,76 @@ class ReadinessService {
                     sleepQuality: sleepQuality
                 )
                 savedDays += 1
-            }
-        }
-        
-        print("💾 READINESS: Saved \(savedDays) days of valid health data")
-        progressCallback(0.9, "Establishing baseline calculations...")
-        
-        // Now calculate baselines and readiness scores for valid days
-        let currentBaselinePeriod = baselinePeriod.rawValue
-        let validMetrics = storageService.getHealthMetricsForPastDays(90)
-            .filter { $0.hasValidHRV }
-            .sorted { $0.date ?? Date.distantPast < $1.date ?? Date.distantPast }
-        
-        print("📈 READINESS: Found \(validMetrics.count) days with valid HRV data")
-        
-        // Only calculate readiness scores for days where we have sufficient as-of baseline data
-        var calculatedScores = 0
-        for (index, metrics) in validMetrics.enumerated() {
-            if Task.isCancelled {
-                progressCallback(0.95, "Cancelled during readiness calculation at day \(index + 1) of \(validMetrics.count)")
-                throw CancellationError()
-            }
-            guard let date = metrics.date else { continue }
-            
-            // Calculate as-of baseline first; skip if insufficient
-            let asOfHRVBaseline = calculateHRVBaseline(asOf: date)
-            if asOfHRVBaseline > 0 {
-                // Calculate readiness score for this date using as-of baselines
-                let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScoreForDate(
-                    hrv: metrics.hrv,
-                    restingHeartRate: metrics.restingHeartRate,
-                    sleepHours: metrics.sleepHours,
-                    date: date
-                )
                 
-                // Save the readiness score
-                _ = storageService.saveReadinessScore(
-                    date: date,
-                    score: score,
-                    hrvBaseline: hrvBaseline,
-                    hrvDeviation: hrvDeviation,
-                    readinessCategory: category.rawValue,
-                    rhrAdjustment: rhrAdjustment,
-                    sleepAdjustment: sleepAdjustment,
-                    readinessMode: readinessMode.rawValue,
-                    baselinePeriod: baselinePeriod.rawValue,
-                    healthMetrics: metrics
-                )
-                calculatedScores += 1
+                // Progressive baseline calculation: Calculate readiness score if we have enough data
+                if savedDays >= minimumDaysForBaseline {
+                    // Save the background context to make data available for baseline calculation
+                    CoreDataManager.shared.saveContext(backgroundContext)
+                    
+                    // Calculate as-of baseline for this date
+                    let asOfHRVBaseline = calculateHRVBaseline(asOf: dayData.date)
+                    if asOfHRVBaseline > 0 {
+                        // Calculate readiness score for this date using as-of baselines
+                        let (score, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment) = calculateReadinessScoreForDate(
+                            hrv: hrv,
+                            restingHeartRate: rhr,
+                            sleepHours: sleepHours,
+                            date: dayData.date
+                        )
+                        
+                        // Save the readiness score using background context
+                        backgroundContext.performAndWait {
+                            // Find the HealthMetrics in the background context by date
+                            let calendar = Calendar.current
+                            let startDate = calendar.startOfDay(for: dayData.date)
+                            let endDate = calendar.date(byAdding: .day, value: 1, to: startDate)!
+                            
+                            let fetchRequest: NSFetchRequest<HealthMetrics> = HealthMetrics.fetchRequest()
+                            fetchRequest.predicate = NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate)
+                            fetchRequest.fetchLimit = 1
+                            
+                            if let metricsInBgContext = try? backgroundContext.fetch(fetchRequest).first {
+                                _ = CoreDataManager.shared.saveReadinessScoreInBackground(
+                                    context: backgroundContext,
+                                    date: dayData.date,
+                                    score: score,
+                                    hrvBaseline: hrvBaseline,
+                                    hrvDeviation: hrvDeviation,
+                                    readinessCategory: category.rawValue,
+                                    rhrAdjustment: rhrAdjustment,
+                                    sleepAdjustment: sleepAdjustment,
+                                    readinessMode: readinessMode.rawValue,
+                                    baselinePeriod: baselinePeriod.rawValue,
+                                    healthMetrics: metricsInBgContext
+                                )
+                                calculatedScores += 1
+                                print("📈 READINESS: Progressively calculated score for \(dayData.date): \(score) (baseline: \(hrvBaseline))")
+                            }
+                        }
+                    }
+                }
+                
+                // Update progress with more detailed information
+                let progress = 0.8 + (Double(index) / Double(max(historicalData.count, 1))) * 0.1
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateStyle = .medium
+                dateFormatter.timeStyle = .none
+                let dateString = dateFormatter.string(from: dayData.date)
+                progressCallback(progress, "Processed \(index + 1)/\(historicalData.count): \(dateString) (scores: \(calculatedScores))")
+            } else {
+                skippedDays += 1
+                if let hrv = dayData.hrv {
+                    print("⚠️ READINESS: Skipping day \(dayData.date) - HRV \(hrv) outside valid range (10-200ms)")
+                } else {
+                    print("⚠️ READINESS: Skipping day \(dayData.date) - No HRV data available")
+                }
             }
         }
         
-        print("🎯 READINESS: Calculated readiness scores for \(calculatedScores) days")
+        // Save the background context
+        CoreDataManager.shared.saveContext(backgroundContext)
+        
+        print("💾 READINESS: Saved \(savedDays) days of valid health data, calculated \(calculatedScores) readiness scores progressively")
         progressCallback(1.0, "Setup complete! Ready to track your readiness.")
         
         // Mark initial setup as complete

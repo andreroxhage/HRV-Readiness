@@ -368,12 +368,20 @@ import HealthKit
     
     func importHistoricalData(days: Int = 90, progressCallback: @escaping (Double, String) -> Void) async throws -> [(date: Date, hrv: Double?, rhr: Double?, sleep: SleepData?)] {
         let endDate = Date()
-        let _ = Calendar.current.date(byAdding: .day, value: -days, to: endDate)!
+        let startDate = Calendar.current.date(byAdding: .day, value: -days, to: endDate)!
+        
+        print("📥 HEALTHKIT: Starting historical data import for \(days) days (from \(startDate) to \(endDate))")
         
         var results: [(date: Date, hrv: Double?, rhr: Double?, sleep: SleepData?)] = []
         
         // Import day by day to provide progress updates
         for dayOffset in 0..<days {
+            // Check for cancellation
+            if Task.isCancelled {
+                print("⚠️ HEALTHKIT: Historical data import cancelled at day \(dayOffset)")
+                throw CancellationError()
+            }
+            
             let currentDate = Calendar.current.date(byAdding: .day, value: -dayOffset, to: endDate)!
             let dayStart = Calendar.current.startOfDay(for: currentDate)
             let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)!
@@ -388,11 +396,19 @@ import HealthKit
             let rhrValue = try? await fetchRestingHeartRateForTimeRange(startTime: dayStart, endTime: dayEnd)
             let sleepValue = try? await fetchSleepDataForTimeRange(startTime: dayStart, endTime: dayEnd)
             
+            // Log what we found for this day
+            if hrvValue != nil || rhrValue != nil || sleepValue != nil {
+                print("📊 HEALTHKIT: Day \(dateFormatter.string(from: currentDate)) - HRV: \(hrvValue?.description ?? "nil"), RHR: \(rhrValue?.description ?? "nil"), Sleep: \(sleepValue?.hours.description ?? "nil")h")
+            }
+            
             results.append((date: dayStart, hrv: hrvValue, rhr: rhrValue, sleep: sleepValue))
             
             // Small delay to prevent overwhelming HealthKit
             try await Task.sleep(nanoseconds: 50_000_000) // 0.05 seconds
         }
+        
+        let validDataCount = results.filter { $0.hrv != nil || $0.rhr != nil || $0.sleep != nil }.count
+        print("📥 HEALTHKIT: Historical data import complete - Found data for \(validDataCount) out of \(days) days")
         
         progressCallback(1.0, "Historical data import complete")
         return results.reversed() // Return in chronological order

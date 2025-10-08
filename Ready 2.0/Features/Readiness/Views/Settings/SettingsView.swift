@@ -6,10 +6,7 @@ struct SettingsView: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @State private var showHealthKitAuth = false
     @State private var showingUnsavedChangesAlert = false
-    @State private var showRecalcPrompt = false
-
     // Persisted originals captured on appear for change detection at Save
-    @State private var originalReadinessMode: ReadinessMode = .morning
     @State private var originalBaselinePeriod: BaselinePeriod = .sevenDays
     @State private var originalUseRHR: Bool = false
     @State private var originalUseSleep: Bool = false
@@ -24,61 +21,35 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
-                // Readiness Mode Section
+                // Morning Window Configuration
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("HRV Reading Mode")
+                        Text("Morning Window End Time")
                             .font(.headline)
                             .foregroundStyle(.primary)
                         
-                        Picker("Readiness Mode", selection: $settingsManager.readinessMode) {
-                            Text("Morning").tag(ReadinessMode.morning)
-                            Text("Rolling").tag(ReadinessMode.rolling)
+                        Picker("Morning End Hour", selection: $settingsManager.morningEndHour) {
+                            Text("09:00").tag(9)
+                            Text("10:00").tag(10)
+                            Text("11:00").tag(11)
+                            Text("12:00").tag(12)
                         }
                         .pickerStyle(.segmented)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
                         
-                        // Mode description and morning end-hour config
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: settingsManager.readinessMode == .morning ? "sunrise" : "clock.arrow.circlepath")
-                                    .foregroundStyle(settingsManager.readinessMode == .morning ? .orange : .blue)
-                                    .symbolEffect(.pulse, options: .repeating, value: settingsManager.readinessMode)
-                                
-                                if settingsManager.readinessMode == .morning {
-                                    Text("Measures HRV during sleep (00:00-\(String(format: "%02d", settingsManager.morningEndHour)):00)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text("Measures HRV over the last 6 hours")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            
-                            if settingsManager.readinessMode == .morning {
-                                HStack {
-                                    Text("Morning window end time")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    Picker("Morning End Hour", selection: $settingsManager.morningEndHour) {
-                                        Text("09:00").tag(9)
-                                        Text("10:00").tag(10)
-                                        Text("11:00").tag(11)
-                                        Text("12:00").tag(12)
-                                    }
-                                    .pickerStyle(.segmented)
-                                    .disabled(settingsManager.isSaving || viewModel.isLoading)
-                                }
-                            }
+                        HStack {
+                            Image(systemName: "sunrise")
+                                .foregroundStyle(.orange)
+                            Text("Measures HRV during sleep (00:00-\(String(format: "%02d", settingsManager.morningEndHour)):00)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         .padding(.top, 4)
                     }
                 } header: {
                     Text("Measurement Settings")
                 } footer: {
-                    Text("Morning mode is recommended for most users as it provides more consistent measurements during sleep.")
+                    Text("Ready measures your HRV during sleep to provide consistent morning readiness scores.")
                 }
                 
                 // Baseline Settings
@@ -186,22 +157,6 @@ struct SettingsView: View {
                 } header: {
                     Text("Information")
                 }
-                
-                // Debug Section (Development builds only)
-                Section {
-                    NavigationLink(destination: DebugDataView(viewModel: viewModel)) {
-                        HStack {
-                            Image(systemName: "chart.bar.doc.horizontal")
-                                .foregroundStyle(.blue)
-                            Text("Debug Data")
-                            Spacer()
-                        }
-                    }
-                } header: {
-                    Text("Debug Information")
-                } footer: {
-                    Text("View current metric values, baselines, and historical data for troubleshooting.")
-                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
@@ -221,50 +176,53 @@ struct SettingsView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if settingsManager.hasUnsavedChanges {
                         Button("Save") {
-                            Task {
-                                do {
-                                    try await settingsManager.saveSettings()
-                                    // Build change set by comparing persisted before/after
-                                    let u = UserDefaultsManager.shared
-                                    var changeTypes: Set<SettingsChangeType> = []
-                                    if originalReadinessMode != u.readinessMode { changeTypes.insert(.readinessMode) }
-                                    if originalBaselinePeriod != u.baselinePeriod { changeTypes.insert(.baselinePeriod) }
-                                    if originalUseRHR != u.useRHRAdjustment { changeTypes.insert(.rhrAdjustment) }
-                                    if originalUseSleep != u.useSleepAdjustment { changeTypes.insert(.sleepAdjustment) }
-                                    if originalMinimumDays != u.minimumDaysForBaseline { changeTypes.insert(.minimumDays) }
-                                    if originalMorningEndHour != u.morningEndHour { changeTypes.insert(.morningEndHour) }
+                            do {
+                                try settingsManager.saveSettings()
+                                // Build change set by comparing persisted before/after
+                                let u = UserDefaultsManager.shared
+                                var changeTypes: Set<SettingsChangeType> = []
+                                if originalBaselinePeriod != u.baselinePeriod { changeTypes.insert(.baselinePeriod) }
+                                if originalUseRHR != u.useRHRAdjustment { changeTypes.insert(.rhrAdjustment) }
+                                if originalUseSleep != u.useSleepAdjustment { changeTypes.insert(.sleepAdjustment) }
+                                if originalMinimumDays != u.minimumDaysForBaseline { changeTypes.insert(.minimumDays) }
+                                if originalMorningEndHour != u.morningEndHour { changeTypes.insert(.morningEndHour) }
 
-                                    let changes = ReadinessSettingsChange(
-                                        types: changeTypes,
-                                        previousValues: SettingsValues(
-                                            mode: originalReadinessMode,
-                                            period: originalBaselinePeriod,
-                                            rhrEnabled: originalUseRHR,
-                                            sleepEnabled: originalUseSleep,
-                                            minimumDays: originalMinimumDays,
-                                            morningEndHour: originalMorningEndHour
-                                        ),
-                                        newValues: SettingsValues(
-                                            mode: u.readinessMode,
-                                            period: u.baselinePeriod,
-                                            rhrEnabled: u.useRHRAdjustment,
-                                            sleepEnabled: u.useSleepAdjustment,
-                                            minimumDays: u.minimumDaysForBaseline,
-                                            morningEndHour: u.morningEndHour
-                                        )
+                                let changes = ReadinessSettingsChange(
+                                    types: changeTypes,
+                                    previousValues: SettingsValues(
+                                        mode: .morning, // Always morning mode now
+                                        period: originalBaselinePeriod,
+                                        rhrEnabled: originalUseRHR,
+                                        sleepEnabled: originalUseSleep,
+                                        minimumDays: originalMinimumDays,
+                                        morningEndHour: originalMorningEndHour
+                                    ),
+                                    newValues: SettingsValues(
+                                        mode: .morning, // Always morning mode now
+                                        period: u.baselinePeriod,
+                                        rhrEnabled: u.useRHRAdjustment,
+                                        sleepEnabled: u.useSleepAdjustment,
+                                        minimumDays: u.minimumDaysForBaseline,
+                                        morningEndHour: u.morningEndHour
                                     )
+                                )
 
-                                    if changes.requiresHistoricalRecalculation {
-                                        showRecalcPrompt = true
-                                    } else if changes.requiresCurrentRecalculation {
-                                        viewModel.handleSettingsChanges(changes)
-                                        dismiss()
-                                    } else {
+                                // Auto-recalculate based on change requirements
+                                if changes.requiresHistoricalRecalculation {
+                                    // Automatically run full historical recalculation
+                                    Task { @MainActor in
+                                        await viewModel.recalculateAllScores()
+                                        await viewModel.loadTodaysReadinessScore()
                                         dismiss()
                                     }
-                                } catch {
-                                    print("❌ Failed to save settings: \(error)")
+                                } else if changes.requiresCurrentRecalculation {
+                                    viewModel.handleSettingsChanges(changes)
+                                    dismiss()
+                                } else {
+                                    dismiss()
                                 }
+                            } catch {
+                                print("❌ Failed to save settings: \(error)")
                             }
                         }
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
@@ -274,31 +232,6 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showHealthKitAuth) {
             HealthKitAuthView()
-        }
-        .confirmationDialog(
-            "Recalculate historical scores?",
-            isPresented: $showRecalcPrompt,
-            titleVisibility: .visible
-        ) {
-            Button("Run now", role: .none) {
-                // Run current and historical recalculation
-                Task { @MainActor in
-                    await viewModel.recalculateAllScores()
-                    await viewModel.loadTodaysReadinessScore()
-                    showRecalcPrompt = false
-                    dismiss()
-                }
-            }
-            Button("Later", role: .cancel) {
-                // Only refresh today's score for now
-                Task { @MainActor in
-                    await viewModel.loadTodaysReadinessScore()
-                    showRecalcPrompt = false
-                    dismiss()
-                }
-            }
-        } message: {
-            Text("Changes you made affect historical calculations. You can recalculate past scores now or do it later from Advanced Settings.")
         }
         .alert("Unsaved Changes", isPresented: $showingUnsavedChangesAlert) {
             Button("Discard Changes", role: .destructive) {
@@ -310,22 +243,19 @@ struct SettingsView: View {
             Text("You have unsaved changes. Do you want to discard them?")
         }
         .onAppear {
+            // Refresh settings from UserDefaults to ensure we have the latest values
+            settingsManager.refreshFromUserDefaults()
+            
             // Capture original persisted settings for change detection
             let u = UserDefaultsManager.shared
-            originalReadinessMode = u.readinessMode
             originalBaselinePeriod = u.baselinePeriod
             originalUseRHR = u.useRHRAdjustment
             originalUseSleep = u.useSleepAdjustment
             originalMinimumDays = u.minimumDaysForBaseline
             originalMorningEndHour = u.morningEndHour
+            
+            print("📋 SETTINGS: Settings view appeared with mode: \(u.readinessMode.rawValue), period: \(u.baselinePeriod.rawValue)")
         }
-    }
-}
-
-// Helper extensions for better readability
-extension ReadinessMode: CaseIterable {
-    public static var allCases: [ReadinessMode] {
-        return [.morning, .rolling]
     }
 }
 

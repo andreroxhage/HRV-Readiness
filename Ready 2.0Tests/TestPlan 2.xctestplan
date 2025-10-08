@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "9DE1477F-EAFA-4410-8937-41F7361CE781",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Ready 2.0.xcodeproj",
+        "identifier" : "65C1392C2D82CF8E00FBEDF1",
+        "name" : "Ready 2.0Tests"
+      }
+    }
+  ],
+  "version" : 1
+}

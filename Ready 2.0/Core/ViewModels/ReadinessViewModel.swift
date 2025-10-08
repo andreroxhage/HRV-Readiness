@@ -130,16 +130,9 @@ class ReadinessViewModel: ObservableObject {
             self.error = nil
         }
         
-        do {
-            // Use the same method as the advanced settings
-            await recalculateAllScores()
-            print("✅ VIEWMODEL: Historical recalculation completed successfully")
-        } catch {
-            await MainActor.run {
-                self.error = error as? ReadinessError ?? .unknownError(error)
-                print("❌ VIEWMODEL: Historical recalculation failed: \(error)")
-            }
-        }
+        // Use the same method as the advanced settings
+        await recalculateAllScores()
+        print("✅ VIEWMODEL: Historical recalculation completed successfully")
         
         await MainActor.run {
             self.isLoading = false
@@ -157,22 +150,32 @@ class ReadinessViewModel: ObservableObject {
         }
         
         if let score = readinessService.getTodaysReadinessScore() {
+            let scoreValue = score.score
+            let category = score.category
+            let hrvBaseline = score.hrvBaseline
+            let hrvDeviation = score.hrvDeviation
+            let rhrAdjustment = score.rhrAdjustment
+            let sleepAdjustment = score.sleepAdjustment
+            let calculationTimestamp = score.calculationTimestamp
+            let mode = score.mode
+            let period = score.period
+            
             await MainActor.run {
-                self.readinessScore = score.score
-                self.readinessCategory = score.category
-                self.hrvBaseline = score.hrvBaseline
-                self.hrvDeviation = score.hrvDeviation
-                self.rhrAdjustment = score.rhrAdjustment
-                self.sleepAdjustment = score.sleepAdjustment
-                self.lastCalculationTime = score.calculationTimestamp
+                self.readinessScore = scoreValue
+                self.readinessCategory = category
+                self.hrvBaseline = hrvBaseline
+                self.hrvDeviation = hrvDeviation
+                self.rhrAdjustment = rhrAdjustment
+                self.sleepAdjustment = sleepAdjustment
+                self.lastCalculationTime = calculationTimestamp
                 
                 // Also update mode and period if different
-                if let mode = score.mode, mode != self.readinessMode {
+                if let mode = mode, mode != self.readinessMode {
                     self.readinessMode = mode
                     self.userDefaultsManager.readinessMode = mode
                 }
                 
-                if let period = score.period, period != self.baselinePeriod {
+                if let period = period, period != self.baselinePeriod {
                     self.baselinePeriod = period
                     self.userDefaultsManager.baselinePeriod = period
                 }
@@ -221,14 +224,22 @@ class ReadinessViewModel: ObservableObject {
                     sleepQuality: sleepQuality
                 ) {
                     print("✅ VIEWMODEL: Successfully calculated readiness score: \(score.score)")
+                    let scoreValue = score.score
+                    let category = score.category
+                    let hrvBaseline = score.hrvBaseline
+                    let hrvDeviation = score.hrvDeviation
+                    let rhrAdjustment = score.rhrAdjustment
+                    let sleepAdjustment = score.sleepAdjustment
+                    let calculationTimestamp = score.calculationTimestamp
+                    
                     await MainActor.run {
-                        self.readinessScore = score.score
-                        self.readinessCategory = score.category
-                        self.hrvBaseline = score.hrvBaseline
-                        self.hrvDeviation = score.hrvDeviation
-                        self.rhrAdjustment = score.rhrAdjustment
-                        self.sleepAdjustment = score.sleepAdjustment
-                        self.lastCalculationTime = score.calculationTimestamp
+                        self.readinessScore = scoreValue
+                        self.readinessCategory = category
+                        self.hrvBaseline = hrvBaseline
+                        self.hrvDeviation = hrvDeviation
+                        self.rhrAdjustment = rhrAdjustment
+                        self.sleepAdjustment = sleepAdjustment
+                        self.lastCalculationTime = calculationTimestamp
                         
                         // Reload past scores to include the new one
                         Task {
@@ -262,14 +273,22 @@ class ReadinessViewModel: ObservableObject {
             do {
                 // Try to recalculate today's readiness
                 if let score = try await calculationViewModel.recalculateReadinessForDate(Date()) {
+                    let scoreValue = score.score
+                    let category = score.category
+                    let hrvBaseline = score.hrvBaseline
+                    let hrvDeviation = score.hrvDeviation
+                    let rhrAdjustment = score.rhrAdjustment
+                    let sleepAdjustment = score.sleepAdjustment
+                    let calculationTimestamp = score.calculationTimestamp
+                    
                     await MainActor.run {
-                        self.readinessScore = score.score
-                        self.readinessCategory = score.category
-                        self.hrvBaseline = score.hrvBaseline
-                        self.hrvDeviation = score.hrvDeviation
-                        self.rhrAdjustment = score.rhrAdjustment
-                        self.sleepAdjustment = score.sleepAdjustment
-                        self.lastCalculationTime = score.calculationTimestamp
+                        self.readinessScore = scoreValue
+                        self.readinessCategory = category
+                        self.hrvBaseline = hrvBaseline
+                        self.hrvDeviation = hrvDeviation
+                        self.rhrAdjustment = rhrAdjustment
+                        self.sleepAdjustment = sleepAdjustment
+                        self.lastCalculationTime = calculationTimestamp
                         self.isLoading = false
                     }
                 }
@@ -362,16 +381,24 @@ class ReadinessViewModel: ObservableObject {
             do {
                 // Try to recalculate readiness for the specified date
                 if let score = try await calculationViewModel.recalculateReadinessForDate(date) {
+                    let scoreValue = score.score
+                    let category = score.category
+                    let hrvBaseline = score.hrvBaseline
+                    let hrvDeviation = score.hrvDeviation
+                    let rhrAdjustment = score.rhrAdjustment
+                    let sleepAdjustment = score.sleepAdjustment
+                    let calculationTimestamp = score.calculationTimestamp
+                    
                     await MainActor.run {
                         // If the date is today, also update the current score
                         if Calendar.current.isDateInToday(date) {
-                            self.readinessScore = score.score
-                            self.readinessCategory = score.category
-                            self.hrvBaseline = score.hrvBaseline
-                            self.hrvDeviation = score.hrvDeviation
-                            self.rhrAdjustment = score.rhrAdjustment
-                            self.sleepAdjustment = score.sleepAdjustment
-                            self.lastCalculationTime = score.calculationTimestamp
+                            self.readinessScore = scoreValue
+                            self.readinessCategory = category
+                            self.hrvBaseline = hrvBaseline
+                            self.hrvDeviation = hrvDeviation
+                            self.rhrAdjustment = rhrAdjustment
+                            self.sleepAdjustment = sleepAdjustment
+                            self.lastCalculationTime = calculationTimestamp
                         }
                         
                         // Reload past scores to include the updated one
@@ -543,8 +570,20 @@ class ReadinessViewModel: ObservableObject {
         return readinessCategory.color
     }
     
+    var categoryColor: Color {
+        return readinessCategory.color
+    }
+    
+    var formattedScore: String {
+        return String(format: "%.0f", readinessScore)
+    }
+    
     var formattedHRVDeviation: String {
-        return String(format: "%.1f%%", hrvDeviation)
+        if hrvDeviation >= 0 {
+            return String(format: "+%.1f%%", hrvDeviation)
+        } else {
+            return String(format: "%.1f%%", hrvDeviation)
+        }
     }
     
     var hrvDeviationColor: Color {
@@ -577,7 +616,7 @@ class ReadinessViewModel: ObservableObject {
         let todayStart = Calendar.current.startOfDay(for: Date())
         let (periodStart, _) = baselinePeriod.dateRange(from: todayStart)
         let metrics = readinessService.storageService.getHealthMetrics(from: periodStart, to: todayStart)
-        let validHRVDays = metrics.map { $0.hrv }.filter { $0 >= 10 }.count
+        let validHRVDays = metrics.map { $0.hrv }.filter { $0 >= 10 && $0 <= 200 }.count
         let minDays = readinessService.minimumDaysForBaseline
         return validHRVDays < minDays ?
             "Need at least \(minDays) valid HRV days (have \(validHRVDays))" :
@@ -588,7 +627,7 @@ class ReadinessViewModel: ObservableObject {
         let todayStart = Calendar.current.startOfDay(for: Date())
         let (periodStart, _) = baselinePeriod.dateRange(from: todayStart)
         let metrics = readinessService.storageService.getHealthMetrics(from: periodStart, to: todayStart)
-        let validHRVDays = metrics.map { $0.hrv }.filter { $0 >= 10 }.count
+        let validHRVDays = metrics.map { $0.hrv }.filter { $0 >= 10 && $0 <= 200 }.count
         return validHRVDays >= readinessService.minimumDaysForBaseline
     }
     
