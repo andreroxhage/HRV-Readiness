@@ -190,10 +190,6 @@ struct ContentView: View {
                 .scrollClipDisabled()
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
-                // Apply score-based tint to list row backgrounds
-                .onAppear {
-                    configureListAppearance()
-                }
                 .overlay {
                     if viewModel.isLoading {
                         ZStack {
@@ -331,31 +327,6 @@ struct ContentView: View {
         fetchHealthData(forceRecalculation: forceRecalculation)
     }
     
-    // Configure list appearance with score-based tinting
-    private func configureListAppearance() {
-        let category = viewModel.readinessCategory
-        let isDark = effectiveColorScheme == .dark
-        
-        // Get the tint color based on readiness category
-        let tintColor: UIColor = {
-            switch category {
-            case .optimal:
-                return isDark ? UIColor.systemGreen.withAlphaComponent(0.15) : UIColor.systemGreen.withAlphaComponent(0.08)
-            case .moderate:
-                return isDark ? UIColor.systemYellow.withAlphaComponent(0.15) : UIColor.systemYellow.withAlphaComponent(0.08)
-            case .low:
-                return isDark ? UIColor.systemOrange.withAlphaComponent(0.15) : UIColor.systemOrange.withAlphaComponent(0.08)
-            case .fatigue:
-                return isDark ? UIColor.systemRed.withAlphaComponent(0.15) : UIColor.systemRed.withAlphaComponent(0.08)
-            default:
-                return isDark ? UIColor.systemGray.withAlphaComponent(0.1) : UIColor.systemGray.withAlphaComponent(0.05)
-            }
-        }()
-        
-        // Apply to table view cells
-        UITableViewCell.appearance().backgroundColor = tintColor
-    }
-    
     private func fetchHealthData(forceRecalculation: Bool = false) {
         Task { @MainActor in
             isLoading = true
@@ -416,9 +387,6 @@ struct ContentView: View {
             if previousCategory != viewModel.readinessCategory {
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.success)
-                
-                // Update list appearance when category changes
-                configureListAppearance()
             }
             
             await MainActor.run {

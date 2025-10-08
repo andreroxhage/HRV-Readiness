@@ -51,33 +51,9 @@ struct ScoreInfoOverlay: View {
     @Binding var showingDisclaimer: Bool
     @Binding var isPresented: Bool
     @Environment(\.presentationMode) var presentationMode
-    @Environment(\.colorScheme) private var colorScheme
-    
-    private var scoreTintColor: Color {
-        let category = viewModel.readinessCategory
-        let isDark = colorScheme == .dark
-        
-        switch category {
-        case .optimal:
-            return isDark ? Color.green.opacity(0.1) : Color.green.opacity(0.05)
-        case .moderate:
-            return isDark ? Color.yellow.opacity(0.1) : Color.yellow.opacity(0.05)
-        case .low:
-            return isDark ? Color.orange.opacity(0.1) : Color.orange.opacity(0.05)
-        case .fatigue:
-            return isDark ? Color.red.opacity(0.1) : Color.red.opacity(0.05)
-        default:
-            return Color.clear
-        }
-    }
     
     var body: some View {
         NavigationView {
-            ZStack {
-                // Score-based background tint
-                scoreTintColor
-                    .ignoresSafeArea()
-                
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -220,21 +196,8 @@ struct ScoreInfoOverlay: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
-            }
             .navigationTitle("Understand Your Score")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                            .font(.system(size: 24))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-            }
         }
     }
 }

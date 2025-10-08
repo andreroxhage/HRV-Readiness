@@ -3,7 +3,6 @@ import SwiftUI
 struct SettingsView: View {
     @StateObject private var settingsManager: ReadinessSettingsManager
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var viewModel: ReadinessViewModel
     @State private var showHealthKitAuth = false
     @State private var showingUnsavedChangesAlert = false
@@ -19,31 +18,8 @@ struct SettingsView: View {
         self._settingsManager = StateObject(wrappedValue: ReadinessSettingsManager())
     }
     
-    private var scoreTintColor: Color {
-        let category = viewModel.readinessCategory
-        let isDark = colorScheme == .dark
-        
-        switch category {
-        case .optimal:
-            return isDark ? Color.green.opacity(0.1) : Color.green.opacity(0.05)
-        case .moderate:
-            return isDark ? Color.yellow.opacity(0.1) : Color.yellow.opacity(0.05)
-        case .low:
-            return isDark ? Color.orange.opacity(0.1) : Color.orange.opacity(0.05)
-        case .fatigue:
-            return isDark ? Color.red.opacity(0.1) : Color.red.opacity(0.05)
-        default:
-            return Color.clear
-        }
-    }
-    
     var body: some View {
         NavigationView {
-            ZStack {
-                // Score-based background tint
-                scoreTintColor
-                    .ignoresSafeArea()
-                
             List {
                 // Morning Window Configuration
                 Section {
@@ -190,19 +166,8 @@ struct SettingsView: View {
                     Text("Information")
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.clear)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if !settingsManager.hasUnsavedChanges {
-                        Button("Done") {
-                            dismiss()
-                        }
-                    }
-                }
-            }
             .safeAreaInset(edge: .bottom) {
                 if settingsManager.hasUnsavedChanges {
                     HStack(spacing: 16) {
@@ -277,7 +242,6 @@ struct SettingsView: View {
                     .padding(16)
                     .background(.ultraThinMaterial)
                 }
-            }
             }
         }
         .sheet(isPresented: $showHealthKitAuth) {

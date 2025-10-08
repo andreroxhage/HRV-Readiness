@@ -3,7 +3,6 @@ import SwiftUI
 struct AdvancedSettingsView: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @ObservedObject var settingsManager: ReadinessSettingsManager
-    @Environment(\.colorScheme) private var colorScheme
     @State private var daysToRecalculate: Int = 7
     @State private var isRecalculating: Bool = false
     @State private var showingDatePicker: Bool = false
@@ -12,30 +11,7 @@ struct AdvancedSettingsView: View {
     @State private var errorMessage: String = ""
     @State private var errorRecoverySuggestion: String = ""
     
-    private var scoreTintColor: Color {
-        let category = viewModel.readinessCategory
-        let isDark = colorScheme == .dark
-        
-        switch category {
-        case .optimal:
-            return isDark ? Color.green.opacity(0.1) : Color.green.opacity(0.05)
-        case .moderate:
-            return isDark ? Color.yellow.opacity(0.1) : Color.yellow.opacity(0.05)
-        case .low:
-            return isDark ? Color.orange.opacity(0.1) : Color.orange.opacity(0.05)
-        case .fatigue:
-            return isDark ? Color.red.opacity(0.1) : Color.red.opacity(0.05)
-        default:
-            return Color.clear
-        }
-    }
-    
     var body: some View {
-        ZStack {
-            // Score-based background tint
-            scoreTintColor
-                .ignoresSafeArea()
-            
         List {
             Section {
                 Stepper(value: $settingsManager.minimumDaysForBaseline, in: 1...10) {
@@ -164,9 +140,6 @@ struct AdvancedSettingsView: View {
                 Text("View current metric values, baselines, and historical data for troubleshooting and debugging.")
             }
 
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.clear)
         }
         .navigationTitle("Advanced Settings")
         .sheet(isPresented: $showingDatePicker) {
