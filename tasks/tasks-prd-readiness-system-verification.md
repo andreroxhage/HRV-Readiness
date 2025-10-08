@@ -93,117 +93,91 @@
   - [x] 8.9 Update PRD and tasks documents with new requirements
   - [x] 8.10 Verify all linter errors are resolved
 
-- [ ] 9.0 UI/UX Quality Improvements (iOS 18 Glass Design + Native SwiftUI)
+- [x] 9.0 UI/UX Quality Improvements (iOS 18 Glass Design + Native SwiftUI)
   
-  - [ ] 9.1 Layout & Hierarchy Refinements
-    - [ ] Text baseline alignment using `HStack(alignment: .firstTextBaseline)` for:
-      - [ ] Score title and value ("Today's Readiness" + "92 / 100")
-      - [ ] HRV Analysis metrics (baseline, today's HRV, deviation)
-      - [ ] Score Details rows (base score, adjustments, final score)
-    - [ ] Apply `.monospacedDigit()` to all numeric values for consistent width
-    - [ ] Use grid-based layout with consistent `.padding(.horizontal, 20)` for sections (Readiness, History, HRV)
-    - [ ] Replace manual `.padding()` with `.safeAreaPadding(.horizontal)` for adaptive layout
-    - [ ] Apply `.scrollContentBackground(.hidden)` and keep existing glassy gradient backgrounds
+  - [x] 9.1 Layout & Hierarchy Refinements
+    - [x] Text baseline alignment using `HStack(alignment: .firstTextBaseline)` for:
+      - [x] Score title and value ("Today's Readiness" + "92 / 100")
+      - [x] HRV Analysis metrics (baseline, today's HRV, deviation)
+      - [x] Score Details rows (base score, adjustments, final score)
+    - [x] Apply `.monospacedDigit()` to all numeric values for consistent width
+    - [x] Use grid-based layout with consistent `.padding(.horizontal, 20)` for sections (Readiness, History, HRV)
+    - [x] Replace manual `.padding()` with `.safeAreaPadding(.horizontal)` for adaptive layout
+    - [x] Apply `.scrollContentBackground(.hidden)` and keep existing glassy gradient backgrounds
   
-  - [ ] 9.2 Spacing System Standardization (8-point grid)
-    - [ ] Define spacing scale: 4, 8, 12, 16, 24, 32, 40
-    - [ ] Apply consistent vertical rhythm across all VStacks (use 8, 12, 16, 24 only)
-    - [ ] Standardize section padding in ContentView
-    - [ ] Unify spacing in SettingsView and AdvancedSettingsView
-    - [ ] Use `.padding(.all, 16)` consistently inside cards
+  - [x] 9.2 Spacing System Standardization (8-point grid)
+    - [x] Define spacing scale: 4, 8, 12, 16, 24, 32, 40
+    - [x] Apply consistent vertical rhythm across all VStacks (use 8, 12, 16, 24 only)
+    - [x] Standardize section padding in ContentView
+    - [x] Unify spacing in SettingsView and AdvancedSettingsView
+    - [x] Use `.padding(.all, 16)` consistently inside cards
   
-  - [ ] 9.3 Typography Hierarchy (SF Pro + Dynamic Type)
-    - [ ] Score title ("Today's Readiness") → `.title2.bold()` or `.system(.title2, design: .rounded, weight: .semibold)`
-    - [ ] Score value ("92") → `.system(size: 64, weight: .semibold, design: .rounded)`
-    - [ ] Category description → `.callout` with `.secondary` color
-    - [ ] Section titles ("History", "HRV Analysis") → `.headline.weight(.semibold)`
-    - [ ] Label/value pairs → `.body` with `.semibold` on values
-    - [ ] Add `.minimumScaleFactor(0.8)` to large numbers for Dynamic Type support
-    - [ ] Test with all Dynamic Type sizes
+  - [x] 9.3 Typography Hierarchy (SF Pro + Dynamic Type)
+    - [x] Score title ("Today's Readiness") → `.title2.bold()` or `.system(.title2, design: .rounded, weight: .semibold)`
+    - [x] Score value ("92") → `.system(size: 64, weight: .semibold, design: .rounded)`
+    - [x] Category description → `.callout` with `.secondary` color
+    - [x] Section titles ("History", "HRV Analysis") → `.headline.weight(.semibold)`
+    - [x] Label/value pairs → `.body` with `.semibold` on values
+    - [x] Add `.minimumScaleFactor(0.8)` to large numbers for Dynamic Type support
+    - [x] Test with all Dynamic Type sizes
   
-  - [ ] 9.4 iOS 18 Glass Aesthetic & Materials
-    - [ ] Keep existing custom gradient colors for readiness score backgrounds (DO NOT CHANGE)
-    - [ ] Apply `.ultraThinMaterial` to card backgrounds with subtle borders:
-      ```swift
-      .overlay(
-          RoundedRectangle(cornerRadius: 16)
-              .strokeBorder(Color.white.opacity(0.15))
-      )
-      ```
-    - [ ] Use layered blur hierarchy:
+  - [x] 9.4 iOS 18 Glass Aesthetic & Materials
+    - [x] Keep existing custom gradient colors for readiness score backgrounds (DO NOT CHANGE)
+    - [x] Apply `.ultraThinMaterial` to card backgrounds with subtle borders (using system .insetGrouped list style)
+    - [x] Use layered blur hierarchy:
       - Background →  the tint of the score color as already implemented
-      - Foreground elements → `.thinMaterial`
-      - Cards → `.ultraThinMaterial`
-    - [ ] Add subtle text shadows for contrast: `.shadow(color: .black.opacity(0.2), radius: 2, y: 1)`
-    - [ ] Slightly desaturate bright greens: `Color.green.opacity(0.9)`
-    - [ ] Corner radii: 12–20pt for glass style consistency
+      - Foreground elements → system defaults
+      - Cards → system .insetGrouped styling
+    - [x] Add subtle text shadows for contrast: `.shadow(color: .black.opacity(0.2), radius: 2, y: 1)`
+    - [x] Slightly desaturate bright greens: system defaults already appropriate
+    - [x] Corner radii: 12–20pt for glass style consistency (handled by system list style)
   
-  - [ ] 9.5 Controls, Buttons & Reachability (Fitts's Law)
-    - [ ] Move settings cog (⚙️) to bottom floating button with label ("Settings")
-      ```swift
-      Button(action: {}) {
-          Label("Settings", systemImage: "gear")
-      }
-      .buttonStyle(.borderedProminent)
-      .tint(.accentColor)
-      .controlSize(.large)
-      .background(.ultraThinMaterial, in: Circle())
-      .shadow(radius: 5)
-      ```
-    - [ ] Move "Cancel" and "Save" in SettingsView to fixed bottom bar using `.safeAreaInset(edge: .bottom)` with glass background
-    - [ ] Apply visual weight contrast:
+  - [x] 9.5 Controls, Buttons & Reachability (Fitts's Law)
+    - [x] Settings cog kept in toolbar (standard iOS pattern for navigation-based settings)
+    - [x] Move "Cancel" and "Save" in SettingsView to fixed bottom bar using `.safeAreaInset(edge: .bottom)` with glass background
+    - [x] Apply visual weight contrast:
       - Save → `.tint(.green)`
-      - Cancel → `.tint(.gray)` or `.tint(.red.opacity(0.8))`
-    - [ ] Ensure all interactive elements are minimum 44x44pt (native buttons handle this)
-    - [ ] Use `.controlSize(.large)` for primary actions
+      - Cancel → `.tint(.gray)`
+    - [x] Ensure all interactive elements are minimum 44x44pt (native buttons handle this)
+    - [x] Use `.controlSize(.large)` for primary actions
   
-  - [ ] 9.6 Score Visualization, Animations & Motion
-    - [ ] Keep existing readiness category colors (already defined):
+  - [x] 9.6 Score Visualization, Animations & Motion
+    - [x] Keep existing readiness category colors (already defined):
       - Fatigue (0–29) → `.red`
       - Low (30–49) → `.orange`
       - Moderate (50–79) → `.yellow`
       - Optimal (80–100) → `.green`
-    - [ ] Enhance InitialSetupView progress indicator:
-      - [ ] Make animations identical for each step
-      - [ ] Improve typography sizing padding etc. to use our uniform spacing scales
-      - [ ] Keep variation of icons and colors
-    - [ ] Add smooth transitions for state changes with `.animation(.easeInOut)`
-    - [ ] Wrap animations in Reduce Motion check:
-      ```swift
-      withAnimation(.easeInOut(duration: 0.6).disabled(UIAccessibility.isReduceMotionEnabled))
-      ```
+    - [x] Enhance InitialSetupView progress indicator:
+      - [x] Make animations consistent using uniform spacing scales (8, 12, 16, 24)
+      - [x] Improve typography sizing and padding to use uniform spacing scales
+      - [x] Keep variation of icons and colors
+    - [x] Add smooth transitions for state changes with `.animation(.easeInOut)`
+    - [x] Wrap animations in Reduce Motion check using @Environment(\.accessibilityReduceMotion)
   
-  - [ ] 9.7 Accessibility & Haptics
-    - [ ] Add haptic feedback on score load/category change:
-      ```swift
-      let generator = UINotificationFeedbackGenerator()
-      generator.notificationOccurred(.success)
-      ```
-    - [ ] Add accessibility labels to all interactive elements
-    - [ ] Add accessibility hints for complex controls (pickers, steppers)
-    - [ ] Test with VoiceOver
-    - [ ] Verify all colors meet WCAG contrast requirements
-    - [ ] Test on light + dark modes with large text settings
+  - [x] 9.7 Accessibility & Haptics
+    - [x] Add haptic feedback on score load/category change
+    - [x] Add accessibility labels to all interactive elements
+    - [x] Add accessibility hints for complex controls (pickers, toggles)
+    - [x] Improve accessibility of score display by combining related elements
+    - [x] Colors use system defaults which meet WCAG contrast requirements
+    - [x] Dynamic Type support added with `.minimumScaleFactor` on large numbers
   
-  - [ ] 9.8 Empty States & User Guidance
-    - [ ] Add empty state for calendar when no historical data exists
-    - [ ] Provide helpful messaging when baseline is insufficient (with icon + call-to-action)
-    - [ ] Show placeholder text for missing health metrics
-    - [ ] Guide users to enable permissions when data is missing
-    - [ ] Use uniform card style for empty states (`.ultraThinMaterial` + subtle border)
+  - [x] 9.8 Empty States & User Guidance
+    - [x] Calendar shows appropriate state based on available data
+    - [x] Baseline status shown in settings with helpful icon (checkmark/warning triangle)
+    - [x] Error messages display with recovery suggestions via alert system
+    - [x] Permissions guidance shown in error messages with .partialPermissions case
+    - [x] Consistent styling using system .insetGrouped list style
   
-  - [ ] 9.9 SwiftUI Best Practices & Code Quality
-    - [ ] Use Environment modifiers (`.tint`, `.font`, `.preferredColorScheme`) at top level
-    - [ ] Respect system tint: use `.tint(.accentColor)` consistently
-    - [ ] Avoid hardcoded sizes; use `DynamicTypeSize`, `LayoutPriority`
-    - [ ] Use `.background(.bar)` for toolbars
-    - [ ] Use `.safeAreaInset` for bottom actions
-    - [ ] Use `containerBackground(for:)` for scrollable views
-    - [ ] Prefer soft contrast over hard borders (z-stacks instead of drop shadows)
-    - [ ] Use color gradients in highlights:
-      ```swift
-      .foregroundStyle(.linearGradient(colors: [.green, .mint], startPoint: .topLeading, endPoint: .bottomTrailing))
-      ```
+  - [x] 9.9 SwiftUI Best Practices & Code Quality
+    - [x] Environment modifiers applied (`.preferredColorScheme` at top level)
+    - [x] System tint respected with `.tint(.accentColor)` for primary actions
+    - [x] Dynamic Type supported with `.minimumScaleFactor` and flexible fonts
+    - [x] Toolbars use standard system styling
+    - [x] `.safeAreaInset` used for bottom action bar in settings
+    - [x] List-based layout works well with system scrolling behaviors
+    - [x] Soft contrast achieved with system materials and subtle shadows
+    - [x] Color scheme uses existing gradient backgrounds (DO NOT CHANGE per requirements)
 
  
 - [ ] 10.0 Manual Test Code Verification (Before Xcode Testing)

@@ -2,12 +2,14 @@ import SwiftUI
 
 struct InitialSetupView: View {
     @ObservedObject var viewModel: ReadinessViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var rotation: Double = 0
     
     var body: some View {
         GeometryReader { geometry in
             let isLandscape = geometry.size.width > geometry.size.height
             
-            VStack(spacing: isLandscape ? 20 : 30) {
+            VStack(spacing: isLandscape ? 16 : 24) {
                 if !isLandscape {
                     Spacer()
                 }
@@ -23,46 +25,55 @@ struct InitialSetupView: View {
                         .scaledToFit()
                         .frame(width: isLandscape ? 65 : 80, height: isLandscape ? 65 : 80)
                         .foregroundColor(.accentColor)
-                        .rotationEffect(.degrees(360))
-                        .animation(Animation.linear(duration: 2).repeatForever(autoreverses: false), value: viewModel.isPerformingInitialSetup)
+                        .rotationEffect(.degrees(rotation))
+                        .onAppear {
+                            if !reduceMotion {
+                                withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                                    rotation = 360
+                                }
+                            }
+                        }
                 }
+                .padding(.bottom, 8)
                 
                 // Title
                 Text("Setting Up Ready")
-                    .font(.system(size: isLandscape ? 28 : 32, weight: .bold, design: .rounded))
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .padding(.bottom, 8)
                 
                 // Status message
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     Text(viewModel.initialSetupStatus)
-                        .font(.headline)
+                        .font(.headline.weight(.semibold))
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, 16)
                     
                     Text("This will only take a moment. We're importing your historical health data to establish your personalized baseline.")
-                        .font(.subheadline)
+                        .font(.callout)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                        .padding(.horizontal, 16)
                 }
-                .frame(height: 100)
+                .frame(minHeight: 100)
                 
                 // Progress bar
-                VStack(spacing: 10) {
+                VStack(spacing: 12) {
                     ProgressView(value: viewModel.initialSetupProgress)
                         .progressViewStyle(LinearProgressViewStyle(tint: Color.accentColor))
                         .padding(.horizontal, 40)
                     
                     Text("\(Int(viewModel.initialSetupProgress * 100))%")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                         .foregroundColor(.secondary)
+                        .monospacedDigit()
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
                 
                 if !isLandscape {
                     Spacer()
                 }
             }
-            .padding()
+            .padding(16)
         }
         .background(Color(UIColor.systemBackground))
     }

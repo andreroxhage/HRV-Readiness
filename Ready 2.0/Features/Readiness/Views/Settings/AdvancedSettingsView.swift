@@ -110,7 +110,7 @@ struct AdvancedSettingsView: View {
                             Text(recovery)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                                .padding(.top, 2)
+                                .padding(.top, 8)
                         }
                     }
                     .padding(.vertical, 8)
@@ -149,7 +149,7 @@ struct AdvancedSettingsView: View {
                         displayedComponents: .date
                     )
                     .datePickerStyle(.graphical)
-                    .padding()
+                    .padding(16)
                     
                     HStack {
                         Image(systemName: "info.circle")
@@ -158,7 +158,7 @@ struct AdvancedSettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 16)
                     
                     Button(action: {
                         viewModel.recalculateReadinessForDate(selectedDate)
@@ -166,12 +166,12 @@ struct AdvancedSettingsView: View {
                     }) {
                         Text("Recalculate Selected Date")
                             .frame(maxWidth: .infinity)
-                            .padding()
+                            .padding(16)
                             .background(Color.blue)
                             .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .cornerRadius(12)
                     }
-                    .padding()
+                    .padding(16)
                     .disabled(viewModel.isLoading)
                 }
                 .navigationTitle("Select Date")
@@ -269,7 +269,7 @@ struct BaselineDetailView: View {
             
             if !viewModel.pastScores.isEmpty {
                 Section {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Historical HRV Values")
                             .font(.headline)
                         

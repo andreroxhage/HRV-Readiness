@@ -23,7 +23,7 @@ struct SettingsView: View {
             List {
                 // Morning Window Configuration
                 Section {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Morning Window End Time")
                             .font(.headline)
                             .foregroundStyle(.primary)
@@ -36,6 +36,8 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.segmented)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
+                        .accessibilityLabel("Morning window end time")
+                        .accessibilityHint("Selects when the morning measurement window ends")
                         
                         HStack {
                             Image(systemName: "sunrise")
@@ -44,7 +46,7 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        .padding(.top, 4)
+                        .padding(.top, 8)
                     }
                 } header: {
                     Text("Measurement Settings")
@@ -54,7 +56,7 @@ struct SettingsView: View {
                 
                 // Baseline Settings
                 Section {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Baseline Period")
                             .font(.headline)
                             .foregroundStyle(.primary)
@@ -66,6 +68,8 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.segmented)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
+                        .accessibilityLabel("Baseline calculation period")
+                        .accessibilityHint("Selects how many days of historical data to use for baseline calculation")
                     }
                     
                     // Baseline status
@@ -76,7 +80,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    .padding(.top, 2)
+                    .padding(.top, 8)
                 } header: {
                     Text("Baseline Calculation")
                 } footer: {
@@ -87,9 +91,13 @@ struct SettingsView: View {
                 Section {
                     Toggle("RHR Adjustment", isOn: $settingsManager.useRHRAdjustment)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
+                        .accessibilityLabel("Resting heart rate adjustment")
+                        .accessibilityHint("When enabled, adjusts readiness score based on resting heart rate")
                     
                     Toggle("Sleep Adjustment", isOn: $settingsManager.useSleepAdjustment)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
+                        .accessibilityLabel("Sleep adjustment")
+                        .accessibilityHint("When enabled, adjusts readiness score based on sleep duration")
                 } header: {
                     Text("Score Adjustments")
                 } footer: {
@@ -161,21 +169,28 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if settingsManager.hasUnsavedChanges {
-                        Button("Cancel") {
-                            showingUnsavedChangesAlert = true
-                        }
-                    } else {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !settingsManager.hasUnsavedChanges {
                         Button("Done") {
                             dismiss()
                         }
                     }
                 }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if settingsManager.hasUnsavedChanges {
-                        Button("Save") {
+            }
+            .safeAreaInset(edge: .bottom) {
+                if settingsManager.hasUnsavedChanges {
+                    HStack(spacing: 16) {
+                        Button {
+                            showingUnsavedChangesAlert = true
+                        } label: {
+                            Text("Cancel")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.gray)
+                        .controlSize(.large)
+                        
+                        Button {
                             do {
                                 try settingsManager.saveSettings()
                                 // Build change set by comparing persisted before/after
@@ -224,9 +239,17 @@ struct SettingsView: View {
                             } catch {
                                 print("❌ Failed to save settings: \(error)")
                             }
+                        } label: {
+                            Text("Save Changes")
+                                .frame(maxWidth: .infinity)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .controlSize(.large)
                         .disabled(settingsManager.isSaving || viewModel.isLoading)
                     }
+                    .padding(16)
+                    .background(.ultraThinMaterial)
                 }
             }
         }

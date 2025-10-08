@@ -47,114 +47,140 @@ struct ContentView: View {
 
                     Section {
                         VStack(spacing: 8) {
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Today's Readiness")
-                                    .font(.title)
-                                    .fontWeight(.medium)
+                                    .font(.system(.title2, design: .rounded, weight: .semibold))
                                     .foregroundStyle(.primary)
+                                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.bottom, 5)
-                                HStack(spacing: 2) {
+                                    .padding(.bottom, 8)
+                                HStack(alignment: .firstTextBaseline, spacing: 4) {
                                         Text(String(format: "%.0f", viewModel.readinessScore))
-                                            .font(.title)
+                                            .font(.system(size: 64, weight: .semibold, design: .rounded))
                                             .foregroundStyle(.secondary)
+                                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                                            .monospacedDigit()
+                                            .minimumScaleFactor(0.8)
+                                            .accessibilityLabel("\(Int(viewModel.readinessScore)) out of 100")
                                         Text("/ 100")
                                             .font(.body)
                                             .foregroundStyle(.secondary)
+                                            .monospacedDigit()
+                                            .accessibilityHidden(true)
                                 }
                             }
                             
                             Text(viewModel.readinessCategory.description)
-                                .font(.subheadline)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .transition(.opacity)
+                                .animation(.easeInOut(duration: 0.6), value: viewModel.readinessCategory.description)
                                 .id(viewModel.readinessCategory.description)
+                                .accessibilityLabel("Category: \(viewModel.readinessCategory.description)")
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Today's readiness score: \(Int(viewModel.readinessScore)) out of 100, \(viewModel.readinessCategory.description)")
                     }
 
                     Section {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("History")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 5)
+                                .padding(.bottom, 8)
                             
                             CalendarView(viewModel: viewModel)
                         }
                     }
                     
                     Section {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("Score Details")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 5)
+                                .padding(.bottom, 8)
                             
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Base Score")
+                                    .font(.body)
                                 Spacer()
                                 Text("\(String(format: "%.0f", viewModel.readinessScore - viewModel.rhrAdjustment - viewModel.sleepAdjustment))")
-                                    .bold()
+                                    .font(.body.weight(.semibold))
+                                    .monospacedDigit()
                             }
                             
                             if viewModel.rhrAdjustment != 0 {
-                                HStack {
+                                HStack(alignment: .firstTextBaseline) {
                                     Text("RHR Adjustment")
+                                        .font(.body)
                                     Spacer()
                                     Text("\(String(format: "%+.0f", viewModel.rhrAdjustment))")
+                                        .font(.body.weight(.semibold))
                                         .foregroundStyle(viewModel.rhrAdjustment < 0 ? .red : .green)
-                                        .bold()
+                                        .monospacedDigit()
                                 }
                             }
                             
                             if viewModel.sleepAdjustment != 0 {
-                                HStack {
+                                HStack(alignment: .firstTextBaseline) {
                                     Text("Sleep Adjustment")
+                                        .font(.body)
                                     Spacer()
                                     Text("\(String(format: "%+.0f", viewModel.sleepAdjustment))")
+                                        .font(.body.weight(.semibold))
                                         .foregroundStyle(viewModel.sleepAdjustment < 0 ? .red : .green)
-                                        .bold()
+                                        .monospacedDigit()
                                 }
                             }
                             
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Final Score (incl. sleep and resting heart rate)")
+                                    .font(.body)
                                 Spacer()
                                 Text("\(String(format: "%.0f", viewModel.readinessScore))")
-                                    .bold()
+                                    .font(.body.weight(.semibold))
+                                    .monospacedDigit()
                             }
                         }
                     }
                     
                     Section {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 12) {
                             Text("HRV Analysis")
-                                .font(.headline)
+                                .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 5)
+                                .padding(.bottom, 8)
                             
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("7-Day Baseline")
+                                    .font(.body)
                                 Spacer()
                                 Text("\(Int(viewModel.hrvBaseline)) ms")
-                                    .bold()
+                                    .font(.body.weight(.semibold))
+                                    .monospacedDigit()
                             }
                             
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Today's HRV")
+                                    .font(.body)
                                 Spacer()
                                 Text("\(Int(viewModel.hrvBaseline * (1 + viewModel.hrvDeviation / 100))) ms")
-                                    .bold()
+                                    .font(.body.weight(.semibold))
+                                    .monospacedDigit()
                             }
                             
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Deviation")
+                                    .font(.body)
                                 Spacer()
                                 Text(String(format: "%.1f%%", viewModel.hrvDeviation))
+                                    .font(.body.weight(.semibold))
                                     .foregroundStyle(viewModel.hrvDeviationColor)
+                                    .monospacedDigit()
                             }
                             
                             UnderstandingScore(viewModel: viewModel)
@@ -165,6 +191,7 @@ struct ContentView: View {
                     refreshData(forceRecalculation: true)
                 }
                 .listStyle(.insetGrouped)
+                .scrollClipDisabled()
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
                 .overlay {
@@ -185,6 +212,8 @@ struct ContentView: View {
                             Image(systemName: "gearshape")
                         }
                         .tint(effectiveColorScheme == .dark ? .white : .black)
+                        .accessibilityLabel("Settings")
+                        .accessibilityHint("Opens settings to configure readiness calculation parameters")
                     }
                 }
                 .sheet(isPresented: $showingSettings) {
@@ -252,6 +281,7 @@ struct ContentView: View {
     private func fetchHealthData(forceRecalculation: Bool = false) {
         Task { @MainActor in
             isLoading = true
+            let previousCategory = viewModel.readinessCategory
             
             // Debug current settings (source of truth is ViewModel/UserDefaultsManager)
             print("🔄 CONTENT: Starting health data fetch")
@@ -303,6 +333,12 @@ struct ContentView: View {
                 sleepHours: sleepHours,
                 sleepQuality: sleepQuality
             )
+            
+            // Provide haptic feedback if category changed
+            if previousCategory != viewModel.readinessCategory {
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+            }
             
             await MainActor.run {
                 isLoading = false
