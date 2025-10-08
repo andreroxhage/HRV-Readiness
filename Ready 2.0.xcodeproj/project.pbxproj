@@ -86,16 +86,6 @@
 			path = "Ready 2.0";
 			sourceTree = "<group>";
 		};
-		65C139302D82CF8E00FBEDF1 /* Ready 2.0Tests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Ready 2.0Tests";
-			sourceTree = "<group>";
-		};
-		65C1393A2D82CF8E00FBEDF1 /* Ready 2.0UITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "Ready 2.0UITests";
-			sourceTree = "<group>";
-		};
 		65C139542D82CFCA00FBEDF1 /* Widget 2.0 */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -145,8 +135,6 @@
 			children = (
 				650E63962D83554C001B544F /* Widget 2.0Extension.entitlements */,
 				65C1391F2D82CF8D00FBEDF1 /* Ready 2.0 */,
-				65C139302D82CF8E00FBEDF1 /* Ready 2.0Tests */,
-				65C1393A2D82CF8E00FBEDF1 /* Ready 2.0UITests */,
 				65C139542D82CFCA00FBEDF1 /* Widget 2.0 */,
 				65C1394F2D82CFCA00FBEDF1 /* Frameworks */,
 				65C1391E2D82CF8D00FBEDF1 /* Products */,
@@ -213,9 +201,6 @@
 			dependencies = (
 				65C1392F2D82CF8E00FBEDF1 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				65C139302D82CF8E00FBEDF1 /* Ready 2.0Tests */,
-			);
 			name = "Ready 2.0Tests";
 			packageProductDependencies = (
 			);
@@ -235,9 +220,6 @@
 			);
 			dependencies = (
 				65C139392D82CF8E00FBEDF1 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				65C1393A2D82CF8E00FBEDF1 /* Ready 2.0UITests */,
 			);
 			name = "Ready 2.0UITests";
 			packageProductDependencies = (

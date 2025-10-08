@@ -180,7 +180,7 @@ class ReadinessViewModel: ObservableObject {
         }
     }
     
-    func loadPastScores(days: Int = 30) async {
+    func loadPastScores(days: Int = 180) async {
         await MainActor.run {
             self.isLoading = true
             self.error = nil
@@ -230,9 +230,9 @@ class ReadinessViewModel: ObservableObject {
                         self.sleepAdjustment = sleepAdjustment
                         self.lastCalculationTime = calculationTimestamp
                         
-                        // Reload past scores to include the new one
+                        // Reload past scores to include the new one (load 180 days to match calendar display)
                         Task {
-                            await self.loadPastScores()
+                            await self.loadPastScores(days: 180)
                         }
                         
                         self.isLoading = false
@@ -341,10 +341,10 @@ class ReadinessViewModel: ObservableObject {
             await MainActor.run {
                 self.isLoading = false
                 
-                // Reload all data to reflect the updated scores
+                // Reload all data to reflect the updated scores (load 180 days to match calendar display)
                 Task {
                     await self.loadTodaysReadinessScore()
-                    await self.loadPastScores()
+                    await self.loadPastScores(days: 180)
                 }
             }
         } catch let error as ReadinessError {
@@ -390,9 +390,9 @@ class ReadinessViewModel: ObservableObject {
                             self.lastCalculationTime = calculationTimestamp
                         }
                         
-                        // Reload past scores to include the updated one
+                        // Reload past scores to include the updated one (load 180 days to match calendar display)
                         Task {
-                            await self.loadPastScores()
+                            await self.loadPastScores(days: 180)
                         }
                         
                         self.isLoading = false
@@ -432,9 +432,9 @@ class ReadinessViewModel: ObservableObject {
             print("🚀 VIEWMODEL: Initial data import needed")
             await performInitialDataImport()
         } else {
-            // Initial setup already completed, just load regular data
+            // Initial setup already completed, just load regular data (load 180 days to match calendar display)
             await loadTodaysReadinessScore()
-            await loadPastScores()
+            await loadPastScores(days: 180)
         }
     }
     
@@ -452,9 +452,9 @@ class ReadinessViewModel: ObservableObject {
                 }
             }
             
-            // After successful import, load the data
+            // After successful import, load the data (load 180 days to match calendar display)
             await loadTodaysReadinessScore()
-            await loadPastScores()
+            await loadPastScores(days: 180)
             
         } catch is CancellationError {
             self.initialSetupStatus = "Cancelled"
@@ -484,7 +484,7 @@ class ReadinessViewModel: ObservableObject {
                     }
                 }
                 await self.loadTodaysReadinessScore()
-                await self.loadPastScores()
+                await self.loadPastScores(days: 180)
             } catch is CancellationError {
                 await MainActor.run {
                     self.initialSetupStatus = "Cancelled"

@@ -5,6 +5,8 @@ import CoreData
 struct CalendarView: View {
     @ObservedObject var viewModel: ReadinessViewModel
     @Environment(\.appearanceViewModel) private var appearanceViewModel
+    // Display 6 months (~180 days) of calendar data
+    // Note: ReadinessViewModel.loadPastScores() default matches this at 180 days
     let monthsToShow = 6
     
     // Calendar components - Using standard calendar with Monday-first display logic
