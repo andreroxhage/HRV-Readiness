@@ -190,6 +190,10 @@ struct ContentView: View {
                 .scrollClipDisabled()
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
+                // Apply score-based tint to list row backgrounds
+                .onAppear {
+                    configureListAppearance()
+                }
                 .overlay {
                     if viewModel.isLoading {
                         ZStack {
@@ -200,99 +204,70 @@ struct ContentView: View {
                         }
                     }
                 }
-                .safeAreaInset(edge: .bottom) {
-                    ZStack {
-                        // Glass background with blur
-                        RoundedRectangle(cornerRadius: 0)
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                Rectangle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.1),
-                                                Color.white.opacity(0.05)
-                                            ],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                            )
-                            .overlay(
-                                Rectangle()
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
-                                    .frame(height: 0.5),
-                                alignment: .top
-                            )
-                        
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                showingSettings = true
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "gearshape.fill")
-                                        .font(.system(size: 16, weight: .medium))
-                                    Text("Settings")
-                                        .font(.system(size: 15, weight: .semibold))
-                                }
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [
-                                            effectiveColorScheme == .dark ? Color.white : Color.black,
-                                            effectiveColorScheme == .dark ? Color.white.opacity(0.8) : Color.black.opacity(0.8)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 14)
-                                .background(
-                                    ZStack {
-                                        // Glass capsule background
-                                        Capsule()
-                                            .fill(.ultraThinMaterial)
-                                        
-                                        // Subtle gradient overlay
-                                        Capsule()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [
-                                                        Color.white.opacity(0.15),
-                                                        Color.white.opacity(0.05)
-                                                    ],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                        
-                                        // Border glow
-                                        Capsule()
-                                            .strokeBorder(
-                                                LinearGradient(
-                                                    colors: [
-                                                        Color.white.opacity(0.3),
-                                                        Color.white.opacity(0.1)
-                                                    ],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                ),
-                                                lineWidth: 1
-                                            )
-                                    }
-                                )
-                                .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
-                                .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+                .safeAreaInset(edge: .bottom) {    
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            showingSettings = true
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 20, weight: .medium))
                             }
-                            .buttonStyle(GlassButtonStyle())
-                            .accessibilityLabel("Settings")
-                            .accessibilityHint("Opens settings to configure readiness calculation parameters")
-                            .padding(.trailing, 20)
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [
+                                        effectiveColorScheme == .dark ? Color.white : Color.black,
+                                        effectiveColorScheme == .dark ? Color.white.opacity(0.8) : Color.black.opacity(0.8)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 14)
+                            .background(
+                                ZStack {
+                                    // Glass capsule background
+                                    Capsule()
+                                        .fill(.ultraThinMaterial)
+                                    
+                                    // Subtle gradient overlay
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.15),
+                                                    Color.white.opacity(0.05)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                    
+                                    // Border glow
+                                    Capsule()
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.3),
+                                                    Color.white.opacity(0.1)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                }
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
+                            .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
                         }
-                        .padding(.vertical, 12)
+                        .buttonStyle(GlassButtonStyle())
+                        .accessibilityLabel("Settings")
+                        .accessibilityHint("Opens settings to configure readiness calculation parameters")
+                        .padding(.trailing, 20)
                     }
-                    .frame(height: 80)
                 }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView(viewModel: viewModel)
@@ -356,6 +331,31 @@ struct ContentView: View {
         fetchHealthData(forceRecalculation: forceRecalculation)
     }
     
+    // Configure list appearance with score-based tinting
+    private func configureListAppearance() {
+        let category = viewModel.readinessCategory
+        let isDark = effectiveColorScheme == .dark
+        
+        // Get the tint color based on readiness category
+        let tintColor: UIColor = {
+            switch category {
+            case .optimal:
+                return isDark ? UIColor.systemGreen.withAlphaComponent(0.15) : UIColor.systemGreen.withAlphaComponent(0.08)
+            case .moderate:
+                return isDark ? UIColor.systemYellow.withAlphaComponent(0.15) : UIColor.systemYellow.withAlphaComponent(0.08)
+            case .low:
+                return isDark ? UIColor.systemOrange.withAlphaComponent(0.15) : UIColor.systemOrange.withAlphaComponent(0.08)
+            case .fatigue:
+                return isDark ? UIColor.systemRed.withAlphaComponent(0.15) : UIColor.systemRed.withAlphaComponent(0.08)
+            default:
+                return isDark ? UIColor.systemGray.withAlphaComponent(0.1) : UIColor.systemGray.withAlphaComponent(0.05)
+            }
+        }()
+        
+        // Apply to table view cells
+        UITableViewCell.appearance().backgroundColor = tintColor
+    }
+    
     private func fetchHealthData(forceRecalculation: Bool = false) {
         Task { @MainActor in
             isLoading = true
@@ -416,6 +416,9 @@ struct ContentView: View {
             if previousCategory != viewModel.readinessCategory {
                 let generator = UINotificationFeedbackGenerator()
                 generator.notificationOccurred(.success)
+                
+                // Update list appearance when category changes
+                configureListAppearance()
             }
             
             await MainActor.run {
