@@ -17,9 +17,12 @@ struct AdvancedSettingsView: View {
                 Stepper(value: $settingsManager.minimumDaysForBaseline, in: 1...10) {
                     HStack {
                         Text("Minimum Days for Baseline")
+                            .font(.body)
                         Spacer()
                         Text("\(settingsManager.minimumDaysForBaseline) days")
+                            .font(.body.weight(.semibold))
                             .foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                 }
                 // Changes are now tracked by ReadinessSettingsManager; user must Save in parent Settings view

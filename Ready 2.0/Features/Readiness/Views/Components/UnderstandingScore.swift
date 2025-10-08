@@ -55,11 +55,10 @@ struct ScoreInfoOverlay: View {
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Score Categories")
-                            .font(.headline)
-                            .padding(.top, 8)
+                            .font(.headline.weight(.semibold))
                         
                         ScoreCategoryRow(
                             title: "Optimal (80-100)",
@@ -91,7 +90,7 @@ struct ScoreInfoOverlay: View {
                     // Score calculation section
                     VStack(alignment: .leading, spacing: 12) {
                         Text("How Your Score Is Calculated")
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
                         
                         Text("Your readiness score is primarily based on Heart Rate Variability (HRV) deviation from your baseline:")
                             .font(.subheadline)
@@ -126,7 +125,7 @@ struct ScoreInfoOverlay: View {
                     // Readiness modes section
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Measurement Window")
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
                         
                         HStack(alignment: .top) {
                             Image(systemName: "sunrise")
@@ -157,7 +156,7 @@ struct ScoreInfoOverlay: View {
                                 Image(systemName: "exclamationmark.triangle")
                                     .foregroundColor(.orange)
                                 Text("Important Disclaimer")
-                                    .font(.headline)
+                                    .font(.headline.weight(.semibold))
                                 Spacer()
                                 Image(systemName: showingDisclaimer ? "chevron.up" : "chevron.down")
                                     .font(.subheadline)
@@ -197,13 +196,10 @@ struct ScoreInfoOverlay: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 30)
             }
+            .navigationTitle("Understand Your Score")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Understand Your Score")
-                        .font(.title)
-                        .fontWeight(.medium)
-                }
-                ToolbarItem(placement: .automatic) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         presentationMode.wrappedValue.dismiss()
                     }) {

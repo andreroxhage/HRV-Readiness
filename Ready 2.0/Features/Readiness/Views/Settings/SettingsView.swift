@@ -25,7 +25,7 @@ struct SettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Morning Window End Time")
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
                             .foregroundStyle(.primary)
                         
                         Picker("Morning End Hour", selection: $settingsManager.morningEndHour) {
@@ -58,7 +58,7 @@ struct SettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Baseline Period")
-                            .font(.headline)
+                            .font(.headline.weight(.semibold))
                             .foregroundStyle(.primary)
                         
                         Picker("Baseline Period", selection: $settingsManager.baselinePeriod) {

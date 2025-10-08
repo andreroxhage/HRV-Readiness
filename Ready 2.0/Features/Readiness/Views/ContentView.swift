@@ -46,24 +46,23 @@ struct ContentView: View {
                     }
 
                     Section {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 12) {
                             HStack(alignment: .firstTextBaseline) {
-                                Text("Today's Readiness")
-                                    .font(.system(.title2, design: .rounded, weight: .semibold))
+                                Text("Readiness")
+                                    .font(.system(.title, design: .rounded, weight: .semibold))
                                     .foregroundStyle(.primary)
                                     .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.bottom, 8)
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                         Text(String(format: "%.0f", viewModel.readinessScore))
-                                            .font(.system(size: 64, weight: .semibold, design: .rounded))
+                                            .font(.system(size: 48, weight: .semibold, design: .rounded))
                                             .foregroundStyle(.secondary)
                                             .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                                             .monospacedDigit()
                                             .minimumScaleFactor(0.8)
                                             .accessibilityLabel("\(Int(viewModel.readinessScore)) out of 100")
                                         Text("/ 100")
-                                            .font(.body)
+                                            .font(.callout)
                                             .foregroundStyle(.secondary)
                                             .monospacedDigit()
                                             .accessibilityHidden(true)
@@ -84,24 +83,22 @@ struct ContentView: View {
                     }
 
                     Section {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("History")
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 8)
                             
                             CalendarView(viewModel: viewModel)
                         }
                     }
                     
                     Section {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Score Details")
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 8)
                             
                             HStack(alignment: .firstTextBaseline) {
                                 Text("Base Score")
@@ -148,12 +145,11 @@ struct ContentView: View {
                     }
                     
                     Section {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("HRV Analysis")
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, 8)
                             
                             HStack(alignment: .firstTextBaseline) {
                                 Text("7-Day Baseline")
@@ -204,17 +200,27 @@ struct ContentView: View {
                         }
                     }
                 }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                .safeAreaInset(edge: .bottom) {
+                    HStack {
+                        Spacer()
                         Button(action: {
                             showingSettings = true
                         }) {
-                            Image(systemName: "gearshape")
+                            Label("Settings", systemImage: "gearshape")
+                                .font(.subheadline.weight(.medium))
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
                         }
-                        .tint(effectiveColorScheme == .dark ? .white : .black)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.accentColor)
+                        .controlSize(.large)
+                        .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
                         .accessibilityLabel("Settings")
                         .accessibilityHint("Opens settings to configure readiness calculation parameters")
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 8)
                     }
+                    .background(.ultraThinMaterial)
                 }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView(viewModel: viewModel)
