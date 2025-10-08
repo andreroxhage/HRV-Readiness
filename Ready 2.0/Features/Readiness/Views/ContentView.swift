@@ -201,26 +201,98 @@ struct ContentView: View {
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            showingSettings = true
-                        }) {
-                            Label("Settings", systemImage: "gearshape")
-                                .font(.subheadline.weight(.medium))
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
+                    ZStack {
+                        // Glass background with blur
+                        RoundedRectangle(cornerRadius: 0)
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.1),
+                                                Color.white.opacity(0.05)
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    )
+                            )
+                            .overlay(
+                                Rectangle()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+                                    .frame(height: 0.5),
+                                alignment: .top
+                            )
+                        
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                showingSettings = true
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "gearshape.fill")
+                                        .font(.system(size: 16, weight: .medium))
+                                    Text("Settings")
+                                        .font(.system(size: 15, weight: .semibold))
+                                }
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [
+                                            effectiveColorScheme == .dark ? Color.white : Color.black,
+                                            effectiveColorScheme == .dark ? Color.white.opacity(0.8) : Color.black.opacity(0.8)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 14)
+                                .background(
+                                    ZStack {
+                                        // Glass capsule background
+                                        Capsule()
+                                            .fill(.ultraThinMaterial)
+                                        
+                                        // Subtle gradient overlay
+                                        Capsule()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color.white.opacity(0.15),
+                                                        Color.white.opacity(0.05)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                        
+                                        // Border glow
+                                        Capsule()
+                                            .strokeBorder(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color.white.opacity(0.3),
+                                                        Color.white.opacity(0.1)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ),
+                                                lineWidth: 1
+                                            )
+                                    }
+                                )
+                                .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
+                                .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+                            }
+                            .buttonStyle(GlassButtonStyle())
+                            .accessibilityLabel("Settings")
+                            .accessibilityHint("Opens settings to configure readiness calculation parameters")
+                            .padding(.trailing, 20)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.accentColor)
-                        .controlSize(.large)
-                        .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
-                        .accessibilityLabel("Settings")
-                        .accessibilityHint("Opens settings to configure readiness calculation parameters")
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 8)
+                        .padding(.vertical, 12)
                     }
-                    .background(.ultraThinMaterial)
+                    .frame(height: 80)
                 }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView(viewModel: viewModel)
@@ -352,6 +424,16 @@ struct ContentView: View {
         }
     }
 
+}
+
+// Glass button style for the floating settings button
+struct GlassButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {
