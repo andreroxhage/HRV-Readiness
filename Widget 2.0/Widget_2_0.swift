@@ -201,7 +201,7 @@ struct MediumWidgetView: View {
                                 .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
                         } else {
                             VStack(spacing: 2) {
-                                Text("\(Int(entry.readinessScore))")
+                                Text("\(Int((entry.readinessScore).rounded()))")
                                     .font(.system(.title, design: .rounded))
                                     .bold()
                                     .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.9))
@@ -381,7 +381,7 @@ struct MediumWidgetView: View {
                           .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
                   } else {
                       VStack(spacing: 1) {
-                          Text("\(Int(entry.readinessScore))")
+                          Text("\(Int((entry.readinessScore).rounded()))")
                               .font(.system(.title2, design: .rounded))
                               .bold()
                               .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory).opacity(0.9))
@@ -461,7 +461,7 @@ struct MediumWidgetView: View {
                               .tint(ringColor)
                       } else {
                           VStack(spacing: 3) {
-                              Text("\(Int(entry.readinessScore))")
+                              Text("\(Int((entry.readinessScore).rounded()))")
                                   .font(.system(.largeTitle, design: .rounded))
                                   .bold()
                                   .foregroundStyle(ringColor.opacity(0.9))
@@ -625,7 +625,7 @@ struct MediumWidgetView: View {
                       .scaleEffect(0.6)
                       .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
               } else {
-                  Text("\(Int(entry.readinessScore))")
+                  Text("\(Int((entry.readinessScore).rounded()))")
                       .font(.system(.caption, design: .rounded))
                       .bold()
                       .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
@@ -670,7 +670,7 @@ struct MediumWidgetView: View {
                       }
                   } else {
                       HStack(alignment: .bottom, spacing: 2) {
-                          Text("\(Int(entry.readinessScore))")
+                          Text("\(Int((entry.readinessScore).rounded()))")
                               .font(.system(.callout, design: .rounded))
                               .bold()
                               .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
@@ -702,7 +702,7 @@ struct MediumWidgetView: View {
           if entry.isLoading {
               Text("Loading readiness...")
           } else {
-              Text("Readiness: \(Int(entry.readinessScore)) (\(entry.readinessCategory))")
+              Text("Readiness: \(Int((entry.readinessScore).rounded())) (\(entry.readinessCategory))")
                   .contentTransition(.numericText())
                   .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
           }

@@ -49,15 +49,13 @@ struct ContentView: View {
                         VStack(spacing: 12) {
                             HStack(alignment: .firstTextBaseline) {
                                 Text("Readiness")
-                                    .font(.system(.title, design: .rounded, weight: .semibold))
+                                    .font(.system(size: 36, weight: .semibold, design: .rounded))
                                     .foregroundStyle(.primary)
-                                    .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                                         Text(String(format: "%.0f", viewModel.readinessScore))
-                                            .font(.system(size: 48, weight: .semibold, design: .rounded))
-                                            .foregroundStyle(.secondary)
-                                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                                            .font(.system(size: 36, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(viewModel.hrvDeviationColor)
                                             .monospacedDigit()
                                             .minimumScaleFactor(0.8)
                                             .accessibilityLabel("\(Int(viewModel.readinessScore)) out of 100")

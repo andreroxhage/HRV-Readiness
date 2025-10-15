@@ -74,23 +74,11 @@ class ReadinessService {
         let hrv: Double
         do {
             hrv = try await healthKitManager.fetchHRVForTimeRange(startTime: timeRange.start, endTime: timeRange.end)
-            print("✅ READINESS: Successfully fetched HRV: \(hrv) ms")
+            print("✅ READINESS: Successfully fetched HRV within morning window: \(hrv) ms")
         } catch {
-            print("❌ READINESS: Failed to fetch HRV data from primary time range: \(error)")
-            print("🔄 READINESS: Trying fallback: last 24 hours")
-            
-            // Fallback: try to get HRV data from the last 24 hours
-            let now = Date()
-            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
-            
-            do {
-                hrv = try await healthKitManager.fetchHRVForTimeRange(startTime: yesterday, endTime: now)
-                print("✅ READINESS: Successfully fetched HRV from 24h fallback: \(hrv) ms")
-            } catch {
-                print("❌ READINESS: Even 24h fallback failed: \(error)")
-                print("💡 READINESS: This will cause the calculation to fail with notAvailable error")
-                throw ReadinessError.notAvailable
-            }
+            // Do NOT broaden to last 24h; morning window is required to avoid using afternoon data
+            print("❌ READINESS: No HRV within morning window (\(timeRange.start) - \(timeRange.end)): \(error)")
+            throw ReadinessError.notAvailable
         }
         
         // Debug logging
@@ -221,8 +209,8 @@ class ReadinessService {
         sleepHours: Double
     ) -> (score: Double, category: ReadinessCategory, hrvBaseline: Double, hrvDeviation: Double, rhrAdjustment: Double, sleepAdjustment: Double) {
         
-        // Calculate HRV baseline
-        let hrvBaseline = calculateHRVBaseline()
+        // Calculate HRV baseline excluding today's data (as-of start of today)
+        let hrvBaseline = calculateHRVBaseline(asOf: Date())
         
         print("🧮 READINESS: Calculating readiness with HRV=\(hrv), RHR=\(restingHeartRate), Sleep=\(sleepHours), Baseline=\(hrvBaseline)")
         print("⚙️ READINESS: Adjustment settings - RHR: \(useRHRAdjustment), Sleep: \(useSleepAdjustment)")
@@ -294,7 +282,8 @@ class ReadinessService {
             print("💓 READINESS: RHR adjustment ENABLED - processing RHR data")
             if restingHeartRate > 0 {
                 print("💓 READINESS: Current RHR: \(restingHeartRate) bpm")
-                let rhrBaseline = calculateRHRBaseline()
+                // Use as-of baseline excluding today's data
+                let rhrBaseline = calculateRHRBaseline(asOf: Date())
                 print("💓 READINESS: RHR baseline: \(rhrBaseline) bpm")
                 
                 if rhrBaseline > 0 {
@@ -325,7 +314,8 @@ class ReadinessService {
             print("😴 READINESS: Sleep adjustment ENABLED - processing sleep data")
             if sleepHours > 0 {
                 print("😴 READINESS: Current sleep: \(sleepHours) hours")
-                
+                // Use as-of baseline excluding today's data
+                let _ = calculateSleepBaseline(asOf: Date())
                 // FR-3 Algorithm: If sleep <6 hours or fragmented → Reduce readiness score by 15%
                 if sleepHours < 6.0 {
                     sleepAdjustment = -15.0  // Exactly -15% as specified in FR-3
@@ -565,27 +555,6 @@ class ReadinessService {
         
         if validHRVValues.count < minimumDaysForBaseline {
             print("❌ READINESS: Not enough valid HRV values (\(validHRVValues.count) < \(minimumDaysForBaseline))")
-            
-            // Progressive baseline: use whatever valid data we have if it's at least 1 day
-            if validHRVValues.count >= 1 {
-                let partialBaseline = validHRVValues.reduce(0, +) / Double(validHRVValues.count)
-                
-                // Check stability of partial baseline
-                let variance = validHRVValues.map { pow($0 - partialBaseline, 2) }.reduce(0, +) / Double(validHRVValues.count)
-                let standardDeviation = sqrt(variance)
-                let coefficientOfVariation = validHRVValues.count > 1 ? (standardDeviation / partialBaseline) * 100 : 0
-                
-                print("⚠️ READINESS: Using partial baseline from \(validHRVValues.count) valid HRV days: \(partialBaseline) ms")
-                if validHRVValues.count > 1 {
-                    print("📊 READINESS: Partial baseline stability - SD: \(String(format: "%.2f", standardDeviation)) ms, CV: \(String(format: "%.1f", coefficientOfVariation))%")
-                    if coefficientOfVariation >= 30.0 {
-                        print("⚠️ READINESS: Partial baseline may be unstable (CV: \(String(format: "%.1f", coefficientOfVariation))% >= 30%)")
-                    }
-                } else {
-                    print("📊 READINESS: Single data point - stability cannot be assessed")
-                }
-                return partialBaseline
-            }
             return 0
         }
         

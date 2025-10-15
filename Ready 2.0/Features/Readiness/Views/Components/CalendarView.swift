@@ -85,7 +85,7 @@ struct CalendarView: View {
                 
                 // Score value in the middle (only if we have data)
                 if hasData {
-                    Text("\(Int(scoreValue))")
+                    Text("\(Int((scoreValue).rounded()))")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(viewModel.getTextColor(for: scoreValue))
                 }

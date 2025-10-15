@@ -2,7 +2,7 @@
 
 ### What this is
 
-Ready 2.0 is a learning project built to explore SwiftUI, MVVM, Core Data, HealthKit, BackgroundTasks, and WidgetKit. It computes a daily "readiness" score primarily from heart rate variability relative to a personal baseline, with optional adjustments from Resting Heart Rate (RHR) and Sleep.
+Ready 2.0 is a learning project built to explore SwiftUI, MVVM, Core Data, HealthKit, BackgroundTasks, and WidgetKit. It computes a daily "readiness" score primarily from heart rate variability relative to a personal baseline, with optional adjustments from Resting Heart Rate (RHR) and Sleep. The purpose of a readiness score is to determine your training and recovery status. Are you up for a tough interval session or need ane extra day of rest?
 
 - **Platform**: iOS (SwiftUI)
 - **Architecture**: MVVM with services and storage layers
@@ -13,29 +13,33 @@ Ready 2.0 is a learning project built to explore SwiftUI, MVVM, Core Data, Healt
 
 Ready 2.0 is a minimal, on-device readiness companion. It turns your daily HRV into a simple readiness score relative to your personal baseline, with optional adjustments from Resting Heart Rate and Sleep. The goal is clear, consistent feedback you can glance at in the app or widgets—optimized for learning SwiftUI/MVVM patterns rather than being a medical product.
 
+**HRV Baseline Interpretation:**
+A sustained increase or decrease in heart rate variability (HRV) relative to a personal baseline has been shown in research to reflect changes in autonomic balance and recovery status. Short-term fluctuations are normal, but multi-day trends are more reliable indicators of systemic stress and recovery capacity.
+- Higher HRV over baseline generally indicates improved parasympathetic activity, better recovery, and greater adaptability to stress and training.
+- Lower HRV over baseline is associated with elevated sympathetic activation, fatigue, or physiological strain from stress, illness, or insufficient recovery.
+
+[(Plews et al., 2013)](https://pubmed.ncbi.nlm.nih.gov/23852425/)
+
 ### Preview
 
 <p align="center">
-  <img src="README-IMAGES/ready_home.jpg" alt="Home (Light)" width="30%"/>
+  <img src="README-IMAGES/ready_home.png" alt="Home (Light)" width="30%"/>
   <img src="README-IMAGES/ready_widgets.PNG" alt="Widgets" width="30%"/>
   <img src="README-IMAGES/ready_home_dark.PNG" alt="Home (Dark)" width="30%"/>  
 </p>
 
 ### How it works (brief)
 
-- **HRV window**: Morning mode (00:00–configurable end hour) or Rolling mode (last 6h).
-- **Baseline**: Personal HRV baseline over a selected period (7/14/30 days), using only valid prior days (as-of baselines for historical days).
-- **Score**: FR‑3 style mapping from HRV deviation, with optional negative adjustments for elevated RHR and poor sleep.
+- **HRV window**: Morning mode (00:00–configurable end hour).
+- **Baseline**: Personal HRV baseline over a selected period (7/14/30 days) 7-day is recommended, using only valid prior days (as-of baselines for historical days).
+- **Score**: From HRV deviation, with optional negative adjustments for elevated RHR and poor sleep.
 - **History**: Chronological (oldest→newest) recomputation with per-day as-of baselines; cancellable with progress.
 - **Background**: Schedules around 06:00, checks staleness, updates widget data.
 
 ### Key features
 
-- **Configurable morning window**: End hour (09–12) applied across UI and calculations
+- **Configurable morning window**: End hour applied across UI and calculations
 - **As-of baselines**: Historical days never include their own data in baselines
-- **Cancellable recomputation**: Progress messages (n/N) and safe cancellation
-- **Retention**: 365‑day data window with cleanup at launch and after backfill
-- **Settings with explicit Save**: Save/discard, change detection, and recomputation prompt
 
 ### Limitations and disclaimers
 
@@ -43,7 +47,7 @@ Ready 2.0 is a minimal, on-device readiness companion. It turns your daily HRV i
 - **Not a medical device**. Do not use for diagnosis or treatment decisions.
 - **Results depend on data quality and consistency** (Apple Health availability, watch wear, conditions).
 
-### HRV as a readiness proxy: key constraints
+## HRV as a readiness proxy: key constraints
 
 As discussed broadly in the coaching/physiology community (and echoed in this explainer video: [HRV limitations overview](https://www.youtube.com/watch?v=IJFkkA5qh5E&ab_channel=TheUnlazyWay)), HRV has material constraints:
 
@@ -69,11 +73,3 @@ This app mitigates some issues via personal baselines, valid‑day gating, morni
 3. Grant Health permissions in‑app.
 4. Use Settings → Advanced to trigger historical recomputation/backfill if needed.
 
-### Status
-
-- Educational project; APIs and logic may change.
-- Tests cover key calculation rules (as‑of baselines, retention, settings flows).
-
-### License
-
-This project is provided for learning purposes. No warranty; use at your own risk.

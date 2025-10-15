@@ -147,7 +147,8 @@ import HealthKit
         let specificAuthStatus = healthStore.authorizationStatus(for: hrvType)
         print("🔐 HEALTHKIT: HRV specific authorization: \(specificAuthStatus.rawValue)")
         
-        let predicate = HKQuery.predicateForSamples(withStart: startTime, end: endTime, options: .strictStartDate)
+        // Use strict start AND end bounds to ensure no samples beyond the configured window are included
+        let predicate = HKQuery.predicateForSamples(withStart: startTime, end: endTime, options: [.strictStartDate, .strictEndDate])
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
         
         return try await withCheckedThrowingContinuation { continuation in
@@ -164,30 +165,8 @@ import HealthKit
                 }
                 
                 guard let quantitySamples = samples as? [HKQuantitySample], !quantitySamples.isEmpty else {
-                    print("⚠️ HEALTHKIT: No HRV data available for time range")
-                    print("🔍 HEALTHKIT: Let's try a broader search to see if any HRV data exists...")
-                    
-                    // Try searching for HRV data in the past 7 days
-                    let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
-                    let broadPredicate = HKQuery.predicateForSamples(withStart: sevenDaysAgo, end: Date(), options: .strictStartDate)
-                    let broadQuery = HKSampleQuery(
-                        sampleType: hrvType,
-                        predicate: broadPredicate,
-                        limit: 10,
-                        sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)]
-                    ) { _, broadSamples, error in
-                        if let broadSamples = broadSamples as? [HKQuantitySample] {
-                            print("🔍 HEALTHKIT: Found \(broadSamples.count) HRV samples in past 7 days")
-                            for (index, sample) in broadSamples.prefix(5).enumerated() {
-                                let value = sample.quantity.doubleValue(for: HKUnit.secondUnit(with: .milli))
-                                print("   Sample \(index + 1): \(value) ms at \(sample.startDate)")
-                            }
-                        } else {
-                            print("🔍 HEALTHKIT: No HRV data found in past 7 days either")
-                        }
-                    }
-                    Task { self.healthStore.execute(broadQuery) }
-                    
+                    print("⚠️ HEALTHKIT: No HRV data available within strict time range \(startTime) - \(endTime)")
+                    // Do NOT broaden search here; let caller decide fallbacks to avoid using wrong-window data
                     continuation.resume(throwing: HealthKitError.noDataAvailable(metric: "HRV"))
                     return
                 }

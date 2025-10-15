@@ -143,8 +143,8 @@ class ReadinessCalculationViewModel {
             print("⚙️ CALC_VM: Sleep adjustment disabled, skipping sleep validation")
         }
         
-        // Check HRV baseline availability (nice to have, but not required for calculation)
-        let hrvBaseline = readinessService.calculateHRVBaseline()
+        // Check HRV baseline availability as-of today (exclude today's data)
+        let hrvBaseline = readinessService.calculateHRVBaseline(asOf: Date())
         if hrvBaseline <= 0 {
             print("⚠️ CALC_VM: HRV baseline not available - will use fallback calculation method")
             // Don't add to missingMetrics since calculation can work without baseline

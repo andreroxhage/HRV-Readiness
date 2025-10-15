@@ -385,24 +385,24 @@ class DebugDataLoader {
         // Calculate baselines using ReadinessService
         let readinessService = viewModel.readinessService
         
-        // HRV baseline
-        debugData.hrvBaseline = readinessService.calculateHRVBaseline()
+        // HRV baseline (as-of today; excludes today's data)
+        debugData.hrvBaseline = readinessService.calculateHRVBaseline(asOf: Date())
         let validHRVData = historicalMetrics.filter { $0.hrv >= 10 && $0.hrv <= 200 }
         debugData.hrvBaselineCount = validHRVData.count
         if debugData.hrvBaseline > 0 && debugData.currentHRV > 0 {
             debugData.hrvDeviation = ((debugData.currentHRV - debugData.hrvBaseline) / debugData.hrvBaseline) * 100
         }
         
-        // RHR baseline
-        debugData.rhrBaseline = readinessService.calculateRHRBaseline()
+        // RHR baseline (as-of today; excludes today's data)
+        debugData.rhrBaseline = readinessService.calculateRHRBaseline(asOf: Date())
         let validRHRData = historicalMetrics.filter { $0.restingHeartRate >= 30 && $0.restingHeartRate <= 120 }
         debugData.rhrBaselineCount = validRHRData.count
         if debugData.rhrBaseline > 0 && debugData.currentRHR > 0 {
             debugData.rhrDeviation = ((debugData.rhrBaseline - debugData.currentRHR) / debugData.rhrBaseline) * 100
         }
         
-        // Sleep baseline
-        debugData.sleepBaseline = readinessService.calculateSleepBaseline()
+        // Sleep baseline (as-of today; excludes today's data)
+        debugData.sleepBaseline = readinessService.calculateSleepBaseline(asOf: Date())
         let validSleepData = historicalMetrics.filter { $0.sleepHours > 0 && $0.sleepHours <= 12 }
         debugData.sleepBaselineCount = validSleepData.count
         if debugData.sleepBaseline > 0 && debugData.currentSleep > 0 {

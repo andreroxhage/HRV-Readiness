@@ -92,32 +92,64 @@ struct ScoreInfoOverlay: View {
                         Text("How Your Score Is Calculated")
                             .font(.headline.weight(.semibold))
                         
-                        Text("Your readiness score is primarily based on Heart Rate Variability (HRV) deviation from your baseline:")
+                        Text("Ready compares today's HRV to your personal baseline and converts the % difference into a 0–100 readiness score (higher is better).")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text("Above‑baseline HRV can indicate supercompensation; below‑baseline suggests reduced readiness.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Within ±3% of baseline → Optimal (80-100)")
-                            Text("3–7% below baseline → Moderate (50–79)")
-                            Text("7–10% below baseline → Low (30–49)")
-                            Text(">10% below baseline → Fatigue (0–29)")
-                            Text(">10% above baseline → Supercompensation (90–100)")
-                                .foregroundStyle(viewModel.hrvDeviation > 10 ? viewModel.hrvDeviationColor : .secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                           DeviationRow(
+                                label: ">10% above baseline → Supercompensation",
+                                scoreRange: "90–100",
+                                color: ReadinessCategory.optimal.color,
+                                highlight: viewModel.hrvDeviation > 10
+                            )
+                            DeviationRow(
+                                label: "Within ±3% of baseline → Optimal",
+                                scoreRange: "80–100",
+                                color: ReadinessCategory.optimal.color
+                            )
+                            DeviationRow(
+                                label: "3–7% below baseline → Moderate",
+                                scoreRange: "50–79",
+                                color: ReadinessCategory.moderate.color
+                            )
+                            DeviationRow(
+                                label: "7–10% below baseline → Low",
+                                scoreRange: "30–49",
+                                color: ReadinessCategory.low.color
+                            )
+                            DeviationRow(
+                                label: ">10% below baseline → Fatigue",
+                                scoreRange: "0–29",
+                                color: ReadinessCategory.fatigue.color
+                            )
+                            
                         }
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
                         
                         Text("Adjustment factors (applied when enabled):")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .padding(.top, 4)
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Elevated resting heart rate (>5 bpm above baseline): -10%")
-                            Text("Poor sleep quality (<6 hours): -15%")
+                        VStack(alignment: .leading, spacing: 8) {
+                            AdjustmentRow(
+                                icon: "heart.fill",
+                                iconColor: .red,
+                                label: "Elevated resting heart rate (>5 bpm above baseline)",
+                                deltaText: "−10 pts"
+                            )
+                            AdjustmentRow(
+                                icon: "bed.double",
+                                iconColor: .blue,
+                                label: "Poor sleep quality (<6 hours)",
+                                deltaText: "−15 pts"
+                            )
                         }
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
                     }
                     
                     Divider()
@@ -225,6 +257,64 @@ struct ScoreCategoryRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+struct DeviationRow: View {
+    let label: String
+    let scoreRange: String
+    let color: Color
+    var highlight: Bool = false
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+                .padding(.top, 2)
+            
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(nil)
+            
+            Spacer(minLength: 12)
+            
+            Text(scoreRange)
+                .font(.subheadline.weight(highlight ? .semibold : .regular))
+                .foregroundColor(color)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct AdjustmentRow: View {
+    let icon: String
+    let iconColor: Color
+    let label: String
+    let deltaText: String
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundColor(iconColor)
+                .font(.subheadline)
+                .frame(width: 16)
+            
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.primary)
+                .lineLimit(nil)
+            
+            Spacer(minLength: 12)
+            
+            Text(deltaText)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 2)
     }
 }
 
