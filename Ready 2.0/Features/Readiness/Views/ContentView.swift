@@ -98,6 +98,8 @@ struct ContentView: View {
                             
                             CalendarView(viewModel: viewModel)
                         }
+                                            
+                        UnderstandingScore(viewModel: viewModel)
                     }
                     
                     if viewModel.readinessScore > 0 {
@@ -188,8 +190,6 @@ struct ContentView: View {
                                         .foregroundStyle(viewModel.hrvDeviationColor)
                                         .monospacedDigit()
                                 }
-                                
-                                UnderstandingScore(viewModel: viewModel)
                             }
                         }
                     }
@@ -198,6 +198,7 @@ struct ContentView: View {
                     refreshData(forceRecalculation: true)
                 }
                 .listStyle(.insetGrouped)
+                .listRowSpacing(0) // or a small value like 5
                 .scrollClipDisabled()
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
@@ -205,17 +206,25 @@ struct ContentView: View {
                     if viewModel.isLoading {
                         ZStack {
                             Color.black.opacity(0.1)
-                                .ignoresSafeArea()
                             ProgressView()
                                 .scaleEffect(1.5)
                         }
+                        .allowsHitTesting(false)  // Allow touches to pass through
                     }
                 }
                 .safeAreaInset(edge: .bottom) {    
                     HStack {
                         Spacer()
                         Button(action: {
-                            showingSettings = true
+                            guard !viewModel.isLoading else {
+                                return
+                            }
+                            guard !showingSettings else {
+                                return
+                            }
+                            DispatchQueue.main.async {
+                                showingSettings = true
+                            }
                         }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "gearshape.fill")
@@ -224,8 +233,8 @@ struct ContentView: View {
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [
-                                        effectiveColorScheme == .dark ? Color.white : Color.black,
-                                        effectiveColorScheme == .dark ? Color.white.opacity(0.8) : Color.black.opacity(0.8)
+                                        effectiveColorScheme == .dark ? Color.white : Color.primary,
+                                        effectiveColorScheme == .dark ? Color.white.opacity(0.8) : Color.primary.opacity(0.8)
                                     ],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
@@ -244,8 +253,8 @@ struct ContentView: View {
                                         .fill(
                                             LinearGradient(
                                                 colors: [
-                                                    Color.white.opacity(0.15),
-                                                    Color.white.opacity(0.05)
+                                                    Color.white.opacity(0.05),
+                                                    Color.white.opacity(0.01)
                                                 ],
                                                 startPoint: .topLeading,
                                                 endPoint: .bottomTrailing
@@ -276,8 +285,16 @@ struct ContentView: View {
                         .padding(.trailing, 20)
                     }
                 }
-                .sheet(isPresented: $showingSettings) {
+                .sheet(isPresented: Binding(
+                    get: { showingSettings },
+                    set: { newValue in
+                        showingSettings = newValue
+                    }
+                )) {
                     SettingsView(viewModel: viewModel)
+                        .onDisappear {
+                            showingSettings = false
+                        }
                 }
                 .alert(
                     "Readiness Update",
@@ -323,7 +340,6 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearanceViewModel.colorScheme)
         .onAppear {
-            print("🔄 CONTENT: ContentView appeared after onboarding completion")
             Task { @MainActor in
                 // First check if we need to perform initial setup
                 await viewModel.checkAndPerformInitialSetup()
@@ -343,24 +359,16 @@ struct ContentView: View {
             isLoading = true
             let previousCategory = viewModel.readinessCategory
             
-            // Debug current settings (source of truth is ViewModel/UserDefaultsManager)
-            print("🔄 CONTENT: Starting health data fetch")
-            print("⚙️ CONTENT: ViewModel settings - RHR: \(viewModel.useRHRAdjustment), Sleep: \(viewModel.useSleepAdjustment)")
             
             // Fetch resting heart rate only if RHR adjustment is enabled
             if viewModel.useRHRAdjustment {
-                print("💓 CONTENT: RHR adjustment ENABLED - attempting to fetch RHR data")
                 do {
                     restingHeartRate = try await viewModel.fetchRestingHeartRate()
-                    print("✅ CONTENT: Successfully fetched RHR: \(restingHeartRate) bpm")
                 } catch {
-                    print("❌ CONTENT: Resting heart rate error: \(error)")
                     restingHeartRate = 0 // Set default when error occurs
-                    print("⚠️ CONTENT: Using default RHR value: 0 due to error")
                 }
             } else {
                 restingHeartRate = 0 // Set default when RHR adjustment is disabled
-                print("💓 CONTENT: RHR adjustment DISABLED, using default value: 0")
             }
             
             // Fetch sleep data only if sleep adjustment is enabled
@@ -369,9 +377,7 @@ struct ContentView: View {
                     let sleepData = try await viewModel.fetchSleepData()
                     sleepHours = sleepData.hours
                     sleepQuality = sleepData.quality
-                    print("😴 CONTENT: Fetched sleep: \(sleepHours)h, quality: \(sleepQuality)")
                 } catch {
-                    print("⚠️ CONTENT: Sleep data error: \(error)")
                     sleepHours = 0
                     sleepQuality = 0
                 }
@@ -379,14 +385,9 @@ struct ContentView: View {
                 // Set default values when sleep adjustment is disabled
                 sleepHours = 0
                 sleepQuality = 0
-                print("😴 CONTENT: Sleep adjustment disabled, using default values: 0h")
             }
 
             // Calculate the readiness score using the health metrics
-            print("🎯 CONTENT: About to call viewModel.calculateReadiness with final values:")
-            print("   - restingHeartRate: \(restingHeartRate)")
-            print("   - sleepHours: \(sleepHours)")
-            print("   - sleepQuality: \(sleepQuality)")
             
             viewModel.calculateReadiness(
                 restingHeartRate: restingHeartRate,
@@ -413,7 +414,7 @@ struct GlassButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .opacity(configuration.isPressed ? 0.7 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }

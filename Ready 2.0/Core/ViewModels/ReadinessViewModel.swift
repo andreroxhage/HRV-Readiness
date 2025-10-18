@@ -74,22 +74,34 @@ class ReadinessViewModel: ObservableObject {
     /// This method is called when settings are explicitly saved
     func handleSettingsChanges(_ changes: ReadinessSettingsChange) {
         print("🔄 VIEWMODEL: Received settings changes: \(changes.types)")
-        print("📊 VIEWMODEL: Requires historical recalculation: \(changes.requiresHistoricalRecalculation)")
-        print("📊 VIEWMODEL: Requires current recalculation: \(changes.requiresCurrentRecalculation)")
         
-        // Update local state to match saved values
+        activeOperationTask?.cancel()
+        
         updateLocalStateFromSavedSettings()
         
-        // Handle business logic based on change types
-        Task { @MainActor in
-            if changes.requiresHistoricalRecalculation {
-                print("🔄 VIEWMODEL: Starting reset and 90-day historical recalculation...")
-                await performResetAndHistoricalRecalculation()
-            } else if changes.requiresCurrentRecalculation {
-                print("🔄 VIEWMODEL: Starting current day recalculation...")
-                await loadTodaysReadinessScore()
-            } else {
-                print("ℹ️ VIEWMODEL: No recalculation needed for these changes")
+        activeOperationTask = Task { @MainActor in
+            self.isLoading = true
+            self.error = nil
+            
+            defer {
+                self.isLoading = false
+            }
+            
+            do {
+                if changes.requiresHistoricalRecalculation {
+                    print("🔄 VIEWMODEL: Starting reset and 90-day historical recalculation...")
+                    try await performResetAndHistoricalRecalculation()
+                } else if changes.requiresCurrentRecalculation {
+                    print("🔄 VIEWMODEL: Starting current day recalculation...")
+                    try await loadTodaysReadinessScoreThrowing()
+                } else {
+                    print("ℹ️ VIEWMODEL: No recalculation needed for these changes")
+                }
+            } catch is CancellationError {
+                print("⚠️ VIEWMODEL: Operation cancelled")
+            } catch {
+                print("❌ VIEWMODEL: Error during recalculation: \(error)")
+                self.error = error as? ReadinessError ?? .unknownError(error)
             }
         }
     }
@@ -112,23 +124,15 @@ class ReadinessViewModel: ObservableObject {
     }
     
     /// Perform reset and 90-day historical recalculation after settings changes
-    private func performResetAndHistoricalRecalculation() async {
+    private func performResetAndHistoricalRecalculation() async throws {
         print("🔄 VIEWMODEL: Starting reset and 90-day historical recalculation...")
-        await MainActor.run {
-            self.isLoading = true
-            self.error = nil
-        }
         
         // First reset all existing scores
         readinessService.resetAllReadinessScores()
         
         // Then recalculate all scores
-        await recalculateAllScores()
+        try await recalculateAllScores()
         print("✅ VIEWMODEL: Reset and historical recalculation completed successfully")
-        
-        await MainActor.run {
-            self.isLoading = false
-        }
     }
     
     /// Perform 90-day historical recalculation after settings changes
@@ -149,11 +153,19 @@ class ReadinessViewModel: ObservableObject {
     }
     
     func loadTodaysReadinessScore() async {
-        await MainActor.run {
-            self.isLoading = true
-            self.error = nil
+        do {
+            try await loadTodaysReadinessScoreThrowing()
+        } catch {
+            print("❌ VIEWMODEL: Error loading today's readiness score: \(error)")
+            // Handle error gracefully - set to unknown state
+            await MainActor.run {
+                self.readinessScore = 0
+                self.readinessCategory = .unknown
+            }
         }
-        
+    }
+    
+    private func loadTodaysReadinessScoreThrowing() async throws {
         if let score = readinessService.getTodaysReadinessScore() {
             let scoreValue = score.score
             let category = score.category
@@ -184,29 +196,20 @@ class ReadinessViewModel: ObservableObject {
                     self.baselinePeriod = period
                     self.userDefaultsManager.baselinePeriod = period
                 }
-                
-                self.isLoading = false
             }
         } else {
             await MainActor.run {
                 self.readinessScore = 0
                 self.readinessCategory = .unknown
-                self.isLoading = false
             }
         }
     }
     
     func loadPastScores(days: Int = 180) async {
-        await MainActor.run {
-            self.isLoading = true
-            self.error = nil
-        }
-        
         let scores = readinessService.getReadinessScoresForPastDays(days)
         
         await MainActor.run {
             self.pastScores = scores
-            self.isLoading = false
         }
     }
     
