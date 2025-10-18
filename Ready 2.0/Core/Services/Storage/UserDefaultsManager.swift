@@ -286,6 +286,96 @@ class UserDefaultsManager {
       appGroupDefaults?.set(scores, forKey: "recentReadinessScores")
       appGroupDefaults?.set(cats, forKey: "recentReadinessCategories")
   }
+  
+  // Clear all widget data (used during reset operations)
+  func clearWidgetData() {
+      print("🔄 WIDGET: Clearing all widget data...")
+      
+      // Clear main UserDefaults
+      userDefaults.set(0, forKey: "currentReadinessScore")
+      userDefaults.set("Unknown", forKey: "currentReadinessCategory")
+      userDefaults.set(Date(), forKey: "currentReadinessTimestamp")
+      userDefaults.set(false, forKey: "hasCurrentReadiness")
+      
+      // Clear app group UserDefaults for widget access
+      appGroupDefaults?.set(0, forKey: "currentReadinessScore")
+      appGroupDefaults?.set("Unknown", forKey: "currentReadinessCategory")
+      appGroupDefaults?.set(Date(), forKey: "currentReadinessTimestamp")
+      appGroupDefaults?.set("❓", forKey: "currentReadinessEmoji")
+      appGroupDefaults?.set("No data available", forKey: "currentReadinessDescription")
+      appGroupDefaults?.set(false, forKey: "hasCurrentReadiness")
+      
+      // Clear widget history
+      appGroupDefaults?.set([], forKey: "recentReadinessDates")
+      appGroupDefaults?.set([], forKey: "recentReadinessScores")
+      appGroupDefaults?.set([], forKey: "recentReadinessCategories")
+      
+      // Force widget timeline refresh
+      WidgetCenter.shared.reloadAllTimelines()
+      
+      print("✅ WIDGET: All widget data cleared")
+  }
+  
+  // Clear only current day widget data while preserving historical data
+  func clearCurrentDayWidgetData() {
+      print("🔄 WIDGET: Clearing current day widget data...")
+      
+      // Clear main UserDefaults for current day
+      userDefaults.set(0, forKey: "currentReadinessScore")
+      userDefaults.set("Unknown", forKey: "currentReadinessCategory")
+      userDefaults.set(Date(), forKey: "currentReadinessTimestamp")
+      userDefaults.set(false, forKey: "hasCurrentReadiness")
+      
+      // Clear app group UserDefaults for current day
+      appGroupDefaults?.set(0, forKey: "currentReadinessScore")
+      appGroupDefaults?.set("Unknown", forKey: "currentReadinessCategory")
+      appGroupDefaults?.set(Date(), forKey: "currentReadinessTimestamp")
+      appGroupDefaults?.set("❓", forKey: "currentReadinessEmoji")
+      appGroupDefaults?.set("No data available", forKey: "currentReadinessDescription")
+      appGroupDefaults?.set(false, forKey: "hasCurrentReadiness")
+      
+      // Update widget history to exclude today's data
+      updateWidgetHistoryExcludingToday()
+      
+      // Force widget timeline refresh
+      WidgetCenter.shared.reloadAllTimelines()
+      
+      print("✅ WIDGET: Current day widget data cleared, historical data preserved")
+  }
+  
+  // Update widget history to exclude today's data
+  private func updateWidgetHistoryExcludingToday() {
+      guard let appGroupDefaults = appGroupDefaults else { return }
+      
+      let today = Calendar.current.startOfDay(for: Date())
+      let recentDates = (appGroupDefaults.array(forKey: "recentReadinessDates") as? [Date]) ?? []
+      let recentScores = (appGroupDefaults.array(forKey: "recentReadinessScores") as? [Double]) ?? []
+      let recentCats = (appGroupDefaults.array(forKey: "recentReadinessCategories") as? [String]) ?? []
+      
+      // Filter out today's data
+      var filteredDates: [Date] = []
+      var filteredScores: [Double] = []
+      var filteredCats: [String] = []
+      
+      for (index, date) in recentDates.enumerated() {
+          if !Calendar.current.isDate(date, inSameDayAs: today) {
+              filteredDates.append(date)
+              if index < recentScores.count {
+                  filteredScores.append(recentScores[index])
+              }
+              if index < recentCats.count {
+                  filteredCats.append(recentCats[index])
+              }
+          }
+      }
+      
+      // Update widget history with filtered data
+      appGroupDefaults.set(filteredDates, forKey: "recentReadinessDates")
+      appGroupDefaults.set(filteredScores, forKey: "recentReadinessScores")
+      appGroupDefaults.set(filteredCats, forKey: "recentReadinessCategories")
+      
+      print("📊 WIDGET: Updated history - kept \(filteredDates.count) historical entries, removed today's data")
+  }
     
     private func getWidgetColorData(for category: ReadinessCategory) -> (red: Double, green: Double, blue: Double) {
         switch category {

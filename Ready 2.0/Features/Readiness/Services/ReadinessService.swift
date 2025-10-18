@@ -58,6 +58,52 @@ class ReadinessService {
     
     // MARK: - Data Processing Methods
     
+    // MARK: - Reset and Recalculation Methods
+    
+    /// Reset all readiness scores and clear widget data
+    /// This should be called before recalculating when settings change
+    func resetAllReadinessScores() {
+        print("🔄 READINESS: Starting reset of all readiness scores...")
+        
+        // Preserve widget history before deleting CoreData scores
+        let preservedHistory = preserveWidgetHistory()
+        
+        // Delete all ReadinessScore entities from CoreData
+        storageService.deleteAllReadinessScores()
+        
+        // Clear current day widget data while preserving historical data
+        userDefaultsManager.clearCurrentDayWidgetData()
+        
+        // Restore preserved history to widget data
+        restoreWidgetHistory(preservedHistory)
+        
+        print("✅ READINESS: Reset completed - all scores cleared, historical widget data preserved")
+    }
+    
+    /// Preserve widget history before reset
+    private func preserveWidgetHistory() -> [(Date, Double, ReadinessCategory)] {
+        let recent = storageService.getReadinessScoresForPastDays(7)
+            .sorted { ($0.date ?? Date.distantPast) < ($1.date ?? Date.distantPast) }
+            .suffix(7)
+        
+        return recent.compactMap { s -> (Date, Double, ReadinessCategory)? in
+            guard let date = s.date else { return nil }
+            return (date, s.score, ReadinessCategory.forScore(s.score))
+        }
+    }
+    
+    /// Restore widget history after reset
+    private func restoreWidgetHistory(_ history: [(Date, Double, ReadinessCategory)]) {
+        // Filter out today's data to avoid showing stale current day data
+        let today = Calendar.current.startOfDay(for: Date())
+        let filteredHistory = history.filter { !Calendar.current.isDate($0.0, inSameDayAs: today) }
+        
+        if !filteredHistory.isEmpty {
+            userDefaultsManager.updateWidgetHistory(entries: filteredHistory)
+            print("📊 READINESS: Restored \(filteredHistory.count) historical entries to widget")
+        }
+    }
+    
     // Current day processing - simple and permissive approach that always works
     func processAndSaveTodaysDataForCurrentMode(
         restingHeartRate: Double,
@@ -360,14 +406,22 @@ class ReadinessService {
             sleepHours: sleepHours,
             sleepQuality: 0 // sleepQuality not computed here; ContentView provides
         )
-        // Save mini-history (last 7 scores) for widget dots
+        // Save mini-history (last 7 scores) for widget dots, including current day
         let recent = storageService.getReadinessScoresForPastDays(7)
             .sorted { ($0.date ?? Date.distantPast) < ($1.date ?? Date.distantPast) }
             .suffix(7)
-        let entries = recent.compactMap { s -> (Date, Double, ReadinessCategory)? in
+        var entries = recent.compactMap { s -> (Date, Double, ReadinessCategory)? in
             guard let date = s.date else { return nil }
             return (date, s.score, ReadinessCategory.forScore(s.score))
         }
+        
+        // Add current day score if it's not already in the recent scores
+        let today = Calendar.current.startOfDay(for: Date())
+        let hasTodayInRecent = entries.contains { Calendar.current.isDate($0.0, inSameDayAs: today) }
+        if !hasTodayInRecent {
+            entries.append((today, finalScore, category))
+        }
+        
         userDefaultsManager.updateWidgetHistory(entries: entries)
         
         return (finalScore, category, hrvBaseline, hrvDeviation, rhrAdjustment, sleepAdjustment)

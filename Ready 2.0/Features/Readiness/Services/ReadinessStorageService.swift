@@ -112,4 +112,9 @@ class ReadinessStorageService {
     func cleanupDataOlderThan(days: Int) {
         coreDataManager.cleanupDataOlderThan(days: days)
     }
+    
+    // Reset operations
+    func deleteAllReadinessScores() {
+        coreDataManager.deleteAllReadinessScores()
+    }
 } 

@@ -83,8 +83,8 @@ class ReadinessViewModel: ObservableObject {
         // Handle business logic based on change types
         Task { @MainActor in
             if changes.requiresHistoricalRecalculation {
-                print("🔄 VIEWMODEL: Starting 90-day historical recalculation...")
-                await performHistoricalRecalculation()
+                print("🔄 VIEWMODEL: Starting reset and 90-day historical recalculation...")
+                await performResetAndHistoricalRecalculation()
             } else if changes.requiresCurrentRecalculation {
                 print("🔄 VIEWMODEL: Starting current day recalculation...")
                 await loadTodaysReadinessScore()
@@ -111,6 +111,26 @@ class ReadinessViewModel: ObservableObject {
         self.useSleepAdjustment = userDefaultsManager.useSleepAdjustment
     }
     
+    /// Perform reset and 90-day historical recalculation after settings changes
+    private func performResetAndHistoricalRecalculation() async {
+        print("🔄 VIEWMODEL: Starting reset and 90-day historical recalculation...")
+        await MainActor.run {
+            self.isLoading = true
+            self.error = nil
+        }
+        
+        // First reset all existing scores
+        readinessService.resetAllReadinessScores()
+        
+        // Then recalculate all scores
+        await recalculateAllScores()
+        print("✅ VIEWMODEL: Reset and historical recalculation completed successfully")
+        
+        await MainActor.run {
+            self.isLoading = false
+        }
+    }
+    
     /// Perform 90-day historical recalculation after settings changes
     private func performHistoricalRecalculation() async {
         print("🔄 VIEWMODEL: Starting 90-day historical recalculation...")
@@ -127,10 +147,6 @@ class ReadinessViewModel: ObservableObject {
             self.isLoading = false
         }
     }
-    
-
-    
-    // MARK: - Data Loading
     
     func loadTodaysReadinessScore() async {
         await MainActor.run {
@@ -471,31 +487,42 @@ class ReadinessViewModel: ObservableObject {
     func startHistoricalImportAndBackfill() {
         isPerformingInitialSetup = true
         initialSetupProgress = 0.0
-        initialSetupStatus = "Preparing to import historical data..."
+        initialSetupStatus = "Resetting existing scores..."
         
         activeOperationTask?.cancel()
         activeOperationTask = Task { [weak self] in
             guard let self = self else { return }
             do {
-                try await self.readinessService.performInitialDataImportAndSetup { [weak self] progress, status in
+                // First reset all existing scores
+                self.readinessService.resetAllReadinessScores()
+                
+                // Then recalculate all scores for 90 days (same as other methods)
+                let scores = try await self.calculationViewModel.recalculateHistoricalReadiness(days: 90) { [weak self] progress, status in
                     Task { @MainActor in
                         self?.initialSetupProgress = progress
                         self?.initialSetupStatus = status
                     }
                 }
+                
+                await MainActor.run {
+                    self.pastScores = scores
+                    self.isPerformingInitialSetup = false
+                    self.initialSetupProgress = 1.0
+                    self.initialSetupStatus = "90-day recalculation complete"
+                }
+                
                 await self.loadTodaysReadinessScore()
                 await self.loadPastScores(days: 180)
             } catch is CancellationError {
                 await MainActor.run {
                     self.initialSetupStatus = "Cancelled"
+                    self.isPerformingInitialSetup = false
                 }
             } catch {
                 await MainActor.run {
                     self.error = error as? ReadinessError ?? .unknownError(error)
+                    self.isPerformingInitialSetup = false
                 }
-            }
-            await MainActor.run {
-                self.isPerformingInitialSetup = false
             }
         }
     }
@@ -515,6 +542,13 @@ class ReadinessViewModel: ObservableObject {
         activeOperationTask = Task { [weak self] in
             guard let self = self else { return }
             do {
+                // First reset all existing scores
+                await MainActor.run {
+                    self.initialSetupStatus = "Resetting existing scores..."
+                }
+                self.readinessService.resetAllReadinessScores()
+                
+                // Then recalculate all scores
                 let scores = try await self.calculationViewModel.recalculateHistoricalReadiness(days: days) { [weak self] progress, status in
                     Task { @MainActor in
                         self?.initialSetupProgress = progress

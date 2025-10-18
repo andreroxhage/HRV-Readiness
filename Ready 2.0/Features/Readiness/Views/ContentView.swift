@@ -53,6 +53,7 @@ struct ContentView: View {
                                     .foregroundStyle(.primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                 HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                    if viewModel.readinessScore > 0 {
                                         Text(String(format: "%.0f", viewModel.readinessScore))
                                             .font(.system(size: 36, weight: .semibold, design: .rounded))
                                             .foregroundStyle(viewModel.hrvDeviationColor)
@@ -64,20 +65,28 @@ struct ContentView: View {
                                             .foregroundStyle(.secondary)
                                             .monospacedDigit()
                                             .accessibilityHidden(true)
+                                    } else {
+                                        Text("--")
+                                            .font(.system(size: 36, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                            .monospacedDigit()
+                                            .minimumScaleFactor(0.8)
+                                            .accessibilityLabel("No readiness score available")
+                                    }
                                 }
                             }
                             
-                            Text(viewModel.readinessCategory.description)
+                            Text(viewModel.readinessScore > 0 ? viewModel.readinessCategory.description : "Not enough data to determine readiness")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .transition(.opacity)
                                 .animation(.easeInOut(duration: 0.6), value: viewModel.readinessCategory.description)
                                 .id(viewModel.readinessCategory.description)
-                                .accessibilityLabel("Category: \(viewModel.readinessCategory.description)")
+                                .accessibilityLabel(viewModel.readinessScore > 0 ? "Category: \(viewModel.readinessCategory.description)" : "No readiness data available")
                         }
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("Today's readiness score: \(Int(viewModel.readinessScore)) out of 100, \(viewModel.readinessCategory.description)")
+                        .accessibilityLabel(viewModel.readinessScore > 0 ? "Today's readiness score: \(Int(viewModel.readinessScore)) out of 100, \(viewModel.readinessCategory.description)" : "No readiness data available")
                     }
 
                     Section {
@@ -91,93 +100,97 @@ struct ContentView: View {
                         }
                     }
                     
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Score Details")
-                                .font(.headline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("Base Score")
-                                    .font(.body)
-                                Spacer()
-                                Text("\(String(format: "%.0f", viewModel.readinessScore - viewModel.rhrAdjustment - viewModel.sleepAdjustment))")
-                                    .font(.body.weight(.semibold))
-                                    .monospacedDigit()
-                            }
-                            
-                            if viewModel.rhrAdjustment != 0 {
+                    if viewModel.readinessScore > 0 {
+                        Section {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Score Details")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                
                                 HStack(alignment: .firstTextBaseline) {
-                                    Text("RHR Adjustment")
+                                    Text("Base Score")
                                         .font(.body)
                                     Spacer()
-                                    Text("\(String(format: "%+.0f", viewModel.rhrAdjustment))")
+                                    Text("\(String(format: "%.0f", viewModel.readinessScore - viewModel.rhrAdjustment - viewModel.sleepAdjustment))")
                                         .font(.body.weight(.semibold))
-                                        .foregroundStyle(viewModel.rhrAdjustment < 0 ? .red : .green)
                                         .monospacedDigit()
                                 }
-                            }
-                            
-                            if viewModel.sleepAdjustment != 0 {
+                                
+                                if viewModel.rhrAdjustment != 0 {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text("RHR Adjustment")
+                                            .font(.body)
+                                        Spacer()
+                                        Text("\(String(format: "%+.0f", viewModel.rhrAdjustment))")
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(viewModel.rhrAdjustment < 0 ? .red : .green)
+                                            .monospacedDigit()
+                                    }
+                                }
+                                
+                                if viewModel.sleepAdjustment != 0 {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        Text("Sleep Adjustment")
+                                            .font(.body)
+                                        Spacer()
+                                        Text("\(String(format: "%+.0f", viewModel.sleepAdjustment))")
+                                            .font(.body.weight(.semibold))
+                                            .foregroundStyle(viewModel.sleepAdjustment < 0 ? .red : .green)
+                                            .monospacedDigit()
+                                    }
+                                }
+                                
                                 HStack(alignment: .firstTextBaseline) {
-                                    Text("Sleep Adjustment")
+                                    Text("Final Score (incl. sleep and resting heart rate)")
                                         .font(.body)
                                     Spacer()
-                                    Text("\(String(format: "%+.0f", viewModel.sleepAdjustment))")
+                                    Text("\(String(format: "%.0f", viewModel.readinessScore))")
                                         .font(.body.weight(.semibold))
-                                        .foregroundStyle(viewModel.sleepAdjustment < 0 ? .red : .green)
                                         .monospacedDigit()
                                 }
-                            }
-                            
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("Final Score (incl. sleep and resting heart rate)")
-                                    .font(.body)
-                                Spacer()
-                                Text("\(String(format: "%.0f", viewModel.readinessScore))")
-                                    .font(.body.weight(.semibold))
-                                    .monospacedDigit()
                             }
                         }
                     }
                     
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("HRV Analysis")
-                                .font(.headline.weight(.semibold))
-                                .foregroundStyle(.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("7-Day Baseline")
-                                    .font(.body)
-                                Spacer()
-                                Text("\(Int(viewModel.hrvBaseline)) ms")
-                                    .font(.body.weight(.semibold))
-                                    .monospacedDigit()
+                    if viewModel.readinessScore > 0 {
+                        Section {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("HRV Analysis")
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text("7-Day Baseline")
+                                        .font(.body)
+                                    Spacer()
+                                    Text("\(Int(viewModel.hrvBaseline)) ms")
+                                        .font(.body.weight(.semibold))
+                                        .monospacedDigit()
+                                }
+                                
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text("Today's HRV")
+                                        .font(.body)
+                                    Spacer()
+                                    Text("\(Int(viewModel.hrvBaseline * (1 + viewModel.hrvDeviation / 100))) ms")
+                                        .font(.body.weight(.semibold))
+                                        .monospacedDigit()
+                                }
+                                
+                                HStack(alignment: .firstTextBaseline) {
+                                    Text("Deviation")
+                                        .font(.body)
+                                    Spacer()
+                                    Text(String(format: "%.1f%%", viewModel.hrvDeviation))
+                                        .font(.body.weight(.semibold))
+                                        .foregroundStyle(viewModel.hrvDeviationColor)
+                                        .monospacedDigit()
+                                }
+                                
+                                UnderstandingScore(viewModel: viewModel)
                             }
-                            
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("Today's HRV")
-                                    .font(.body)
-                                Spacer()
-                                Text("\(Int(viewModel.hrvBaseline * (1 + viewModel.hrvDeviation / 100))) ms")
-                                    .font(.body.weight(.semibold))
-                                    .monospacedDigit()
-                            }
-                            
-                            HStack(alignment: .firstTextBaseline) {
-                                Text("Deviation")
-                                    .font(.body)
-                                Spacer()
-                                Text(String(format: "%.1f%%", viewModel.hrvDeviation))
-                                    .font(.body.weight(.semibold))
-                                    .foregroundStyle(viewModel.hrvDeviationColor)
-                                    .monospacedDigit()
-                            }
-                            
-                            UnderstandingScore(viewModel: viewModel)
                         }
                     }
                 }

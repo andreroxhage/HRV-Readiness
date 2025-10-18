@@ -339,6 +339,30 @@ class CoreDataManager {
     
     // MARK: - Data Cleanup Methods
     
+    /// Delete all ReadinessScore entities while preserving raw HealthMetrics data
+    func deleteAllReadinessScores() {
+        let context = viewContext
+        
+        context.performAndWait {
+            do {
+                let fetchRequest: NSFetchRequest<ReadinessScore> = ReadinessScore.fetchRequest()
+                let allScores = try context.fetch(fetchRequest)
+                
+                print("🧹 COREDATA: Deleting \(allScores.count) ReadinessScore records")
+                
+                for score in allScores {
+                    context.delete(score)
+                }
+                
+                print("✅ COREDATA: Successfully deleted all ReadinessScore records")
+            } catch {
+                print("❌ COREDATA: Failed to delete ReadinessScore records: \(error)")
+            }
+        }
+        
+        saveContext()
+    }
+    
     func cleanupDuplicateHealthMetrics() {
         print("🧹 COREDATA: Starting cleanup of duplicate health metrics...")
         

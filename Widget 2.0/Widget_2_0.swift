@@ -199,7 +199,7 @@ struct MediumWidgetView: View {
                             ProgressView()
                                 .scaleEffect(0.8)
                                 .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
-                        } else {
+                        } else if entry.hasCurrentScore {
                             VStack(spacing: 2) {
                                 Text("\(Int((entry.readinessScore).rounded()))")
                                     .font(.system(.title, design: .rounded))
@@ -211,6 +211,12 @@ struct MediumWidgetView: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
+                        } else {
+                            VStack(spacing: 2) {
+                                Text("--")
+                                    .font(.system(.title, design: .rounded))
+                                    .bold()
+                                    .foregroundStyle(.secondary)
                         }
 
                         // Error indicator overlay
@@ -265,6 +271,7 @@ struct MediumWidgetView: View {
         }
         .padding(12)
         .dynamicTypeSize(.small ... .large) // Prevent extreme scaling in widgets
+        }
     }
 
 
@@ -333,6 +340,15 @@ struct MediumWidgetView: View {
             if i < entry.recentScores.count { scoreMap[key] = entry.recentScores[i] }
             if i < entry.recentCategories.count { categoryMap[key] = entry.recentCategories[i] }
         }
+        
+        if entry.hasCurrentScore && entry.readinessScore > 0 {
+            let currentDayStart = cal.startOfDay(for: entry.date)
+            if cal.dateInterval(of: .weekOfYear, for: currentDayStart)?.contains(today) == true {
+                scoreMap[currentDayStart] = entry.readinessScore
+                categoryMap[currentDayStart] = entry.readinessCategory
+            }
+        }
+        
         return (0..<7).map { idx in
             let day = cal.startOfDay(for: cal.date(byAdding: .day, value: idx, to: weekStart)!)
             return DayPoint(
@@ -346,8 +362,8 @@ struct MediumWidgetView: View {
 
 }
 
-  // Small Widget - Left side of medium (score ring only)
-  struct ReadinessWidgetView: View {
+// Small Widget - Left side of medium (score ring only)
+struct ReadinessWidgetView: View {
       var entry: Provider.Entry
 
       var body: some View {
@@ -379,7 +395,7 @@ struct MediumWidgetView: View {
                       ProgressView()
                           .scaleEffect(0.7)
                           .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
-                  } else {
+                  } else if entry.hasCurrentScore {
                       VStack(spacing: 1) {
                           Text("\(Int((entry.readinessScore).rounded()))")
                               .font(.system(.title2, design: .rounded))
@@ -390,6 +406,14 @@ struct MediumWidgetView: View {
                           Text(entry.readinessCategory)
                               .font(.caption2)
                               .foregroundStyle(.secondary)
+                      }
+                  } else {
+                      VStack(spacing: 1) {
+                          Text("--")
+                              .font(.system(.title2, design: .rounded))
+                              .bold()
+                              .foregroundStyle(.secondary)
+     
                       }
                   }
 
@@ -459,7 +483,7 @@ struct MediumWidgetView: View {
                           ProgressView()
                               .scaleEffect(1.0)
                               .tint(ringColor)
-                      } else {
+                      } else if entry.hasCurrentScore {
                           VStack(spacing: 3) {
                               Text("\(Int((entry.readinessScore).rounded()))")
                                   .font(.system(.largeTitle, design: .rounded))
@@ -470,6 +494,14 @@ struct MediumWidgetView: View {
                               Text(entry.readinessCategory)
                                   .font(.caption)
                                   .foregroundStyle(.secondary)
+                          }
+                      } else {
+                          VStack(spacing: 3) {
+                              Text("--")
+                                  .font(.system(.largeTitle, design: .rounded))
+                                  .bold()
+                                  .foregroundStyle(.secondary)
+
                           }
                       }
 
@@ -561,6 +593,15 @@ struct MediumWidgetView: View {
                if index < entry.recentScores.count { scoreByDay[key] = entry.recentScores[index] }
                if index < entry.recentCategories.count { categoryByDay[key] = entry.recentCategories[index] }
            }
+           
+           if entry.hasCurrentScore && entry.readinessScore > 0 {
+               let currentDayStart = calendar.startOfDay(for: entry.date)
+               if calendar.dateInterval(of: .weekOfYear, for: currentDayStart)?.contains(today) == true {
+                   scoreByDay[currentDayStart] = entry.readinessScore
+                   categoryByDay[currentDayStart] = entry.readinessCategory
+               }
+           }
+           
            return (0..<7).map { index in
                let day = calendar.startOfDay(for: calendar.date(byAdding: .day, value: index, to: weekStart)!)
                return DayPoint(
@@ -624,13 +665,18 @@ struct MediumWidgetView: View {
                   ProgressView()
                       .scaleEffect(0.6)
                       .tint(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
-              } else {
+              } else if entry.hasCurrentScore {
                   Text("\(Int((entry.readinessScore).rounded()))")
                       .font(.system(.caption, design: .rounded))
                       .bold()
                       .foregroundStyle(colorFor(score: entry.readinessScore, category: entry.readinessCategory))
                       .contentTransition(.numericText())
                       .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+              } else {
+                  Text("--")
+                      .font(.system(.caption, design: .rounded))
+                      .bold()
+                      .foregroundStyle(.secondary)
               }
           }
           .widgetAccentable()
@@ -668,7 +714,7 @@ struct MediumWidgetView: View {
                               .font(.caption2)
                               .foregroundStyle(.secondary)
                       }
-                  } else {
+                  } else if entry.hasCurrentScore {
                       HStack(alignment: .bottom, spacing: 2) {
                           Text("\(Int((entry.readinessScore).rounded()))")
                               .font(.system(.callout, design: .rounded))
@@ -683,6 +729,16 @@ struct MediumWidgetView: View {
                       Text(entry.readinessCategory)
                           .font(.caption2)
                           .foregroundStyle(.tertiary)
+                  } else {
+                      HStack(alignment: .bottom, spacing: 2) {
+                          Text("--")
+                              .font(.system(.callout, design: .rounded))
+                              .bold()
+                              .foregroundStyle(.secondary)
+                          Text("Readiness")
+                              .font(.caption2)
+                              .foregroundStyle(.secondary)
+                      }
                   }
               }
 
@@ -701,10 +757,12 @@ struct MediumWidgetView: View {
       var body: some View {
           if entry.isLoading {
               Text("Loading readiness...")
-          } else {
+          } else if entry.hasCurrentScore {
               Text("Readiness: \(Int((entry.readinessScore).rounded())) (\(entry.readinessCategory))")
                   .contentTransition(.numericText())
                   .animation(.easeInOut(duration: 0.3), value: entry.readinessScore)
+          } else {
+              Text("Readiness: No data")
           }
       }
   }
